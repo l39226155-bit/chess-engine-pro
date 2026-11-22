@@ -161,7 +161,6 @@ final class StockfishEngine: ChessEngine {
         stateLock.unlock()
 
         sf_write(command)
-        NSLog("[SF] start: %@ (engine linked: %d)", command, sf_available() ? 1 : 0)
     }
 
     private func applyOptionIfNeeded(_ name: String, _ value: String) {
@@ -206,7 +205,6 @@ final class StockfishEngine: ChessEngine {
             if length == 0 { continue }
             handle(line: String(cString: buffer))
         }
-        NSLog("[SF] reader loop ended")
 
         stateLock.lock()
         let completion = continuation
@@ -323,7 +321,6 @@ final class StockfishEngine: ChessEngine {
         if parts.count >= 2, parts[1] != "(none)" {
             move = Move(uci: parts[1])
         }
-        NSLog("[SF] raw bestmove: %@ -> %@", line, move?.uci ?? "nil")
 
         stateLock.lock()
         let wasActive = searchActive

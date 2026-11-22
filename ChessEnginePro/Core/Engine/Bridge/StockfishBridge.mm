@@ -141,8 +141,11 @@ protected:
         return traits_type::not_eof(character);
     }
 
+    // Stockfish flushes after every insertion (std::ios::unitbuf), so one UCI
+    // line such as "bestmove e2e4" arrives as several writes. Only a newline
+    // terminates a line here - flushing partial text would split the line and
+    // hand the reader a bare "bestmove " without a move.
     int sync() override {
-        flushPartial();
         return 0;
     }
 
@@ -155,12 +158,6 @@ private:
             return;
         }
         partial_.push_back(character);
-    }
-
-    void flushPartial() {
-        if (partial_.empty()) return;
-        queue_.push(partial_);
-        partial_.clear();
     }
 
     LineQueue &queue_;
