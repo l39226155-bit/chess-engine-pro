@@ -37,8 +37,8 @@ final class EngineTests: XCTestCase {
     }
 
     func testFallbackEngineFindsMateInOne() async {
-        // White: Ka1, Qb6; Black: Ka8. Qb7 is mate.
-        guard let board = Board(fen: "k7/8/1Q6/8/8/8/8/K7 w - - 0 1") else {
+        // White: Kg1, Ra1; Black: Kh8, pawns g7/h7. Ra8 is back rank mate.
+        guard let board = Board(fen: "7k/6pp/8/8/8/8/8/R5K1 w - - 0 1") else {
             return XCTFail("FEN ungültig")
         }
         let engine = FallbackEngine()

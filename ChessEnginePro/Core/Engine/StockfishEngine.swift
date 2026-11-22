@@ -44,6 +44,9 @@ final class StockfishEngine: ChessEngine {
     private var bestMoveSignal = DispatchSemaphore(value: 0)
 
     private var searchActive = false
+    /// Incremented for every new search so a late `stop()` from the previous
+    /// stream cannot abort the current one.
+    private var searchGeneration = 0
     private var linesByRank: [Int: EngineLine] = [:]
     private var depth = 0
     private var seldepth = 0
@@ -74,6 +77,8 @@ final class StockfishEngine: ChessEngine {
             stateLock.lock()
             let previous = self.continuation
             self.continuation = continuation
+            self.searchGeneration &+= 1
+            let generation = self.searchGeneration
             self.linesByRank.removeAll()
             self.depth = 0
             self.seldepth = 0
@@ -90,15 +95,26 @@ final class StockfishEngine: ChessEngine {
             }
 
             continuation.onTermination = { [weak self] _ in
-                self?.stop()
+                self?.stop(ifCurrent: generation)
             }
         }
     }
 
     func stop() {
+        stop(ifCurrent: nil)
+    }
+
+    /// Stops the search. When `generation` is given the request is ignored if a
+    /// newer search has already started, which prevents a terminated stream
+    /// from killing its successor.
+    private func stop(ifCurrent generation: Int?) {
         ioQueue.async { [weak self] in
             guard let self = self else { return }
             self.stateLock.lock()
+            if let generation = generation, generation != self.searchGeneration {
+                self.stateLock.unlock()
+                return
+            }
             let active = self.searchActive
             self.searchActive = false
             self.stateLock.unlock()

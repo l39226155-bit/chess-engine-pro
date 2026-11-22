@@ -59,7 +59,9 @@ final class ChessCoreTests: XCTestCase {
         XCTAssertEqual(board.fen, fen)
         XCTAssertEqual(board.sideToMove, .white)
         XCTAssertTrue(board.castling.whiteKingSide)
-        XCTAssertFalse(board.castling.blackQueenSide)
+        // The FEN grants all four rights ("KQkq").
+        XCTAssertTrue(board.castling.blackKingSide)
+        XCTAssertTrue(board.castling.blackQueenSide)
         XCTAssertEqual(board.halfmoveClock, 2)
         XCTAssertEqual(board.fullmoveNumber, 3)
     }
