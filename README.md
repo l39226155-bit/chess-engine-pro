@@ -218,4 +218,4 @@ Deduplizierung, Zugarten, Matt-Erkennung und alle Ablehnungsgründe ab.
 
 ## 7. Version
 
-`1.1.0` (Build 2) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+`2.0.0` (Build 3) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
