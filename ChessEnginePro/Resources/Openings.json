@@ -1,0 +1,282 @@
+[
+  {
+    "id": "italian-game",
+    "name": "Italian Game",
+    "eco": "C50",
+    "description": "Klassische Entwicklung mit Läufer nach c4.",
+    "moves": [
+      "e4",
+      "e5",
+      "Nf3",
+      "Nc6",
+      "Bc4",
+      "Bc5",
+      "c3",
+      "Nf6",
+      "d3",
+      "d6",
+      "O-O",
+      "O-O"
+    ]
+  },
+  {
+    "id": "ruy-lopez",
+    "name": "Ruy Lopez",
+    "eco": "C65",
+    "description": "Der spanische Angriff mit Bb5 und Turm auf e1.",
+    "moves": [
+      "e4",
+      "e5",
+      "Nf3",
+      "Nc6",
+      "Bb5",
+      "a6",
+      "Ba4",
+      "Nf6",
+      "O-O",
+      "Be7",
+      "Re1",
+      "b5",
+      "Bb3",
+      "d6",
+      "c3",
+      "O-O"
+    ]
+  },
+  {
+    "id": "sizilianisch-najdorf",
+    "name": "Sizilianisch (Najdorf)",
+    "eco": "B90",
+    "description": "Schwarz greift mit a6 und e5 an.",
+    "moves": [
+      "e4",
+      "c5",
+      "Nf3",
+      "d6",
+      "d4",
+      "cxd4",
+      "Nxd4",
+      "Nf6",
+      "Nc3",
+      "a6",
+      "Be3",
+      "e5",
+      "Nb3",
+      "Be6"
+    ]
+  },
+  {
+    "id": "sizilianisch-alapin",
+    "name": "Sizilianisch (Alapin)",
+    "eco": "B22",
+    "description": "Weiß baut mit c3 ein breites Zentrum.",
+    "moves": [
+      "e4",
+      "c5",
+      "c3",
+      "Nf6",
+      "e5",
+      "Nd5",
+      "d4",
+      "cxd4",
+      "Nf3",
+      "Nc6"
+    ]
+  },
+  {
+    "id": "französisch",
+    "name": "Französisch",
+    "eco": "C11",
+    "description": "Festungsaufbau mit e6 und d5.",
+    "moves": [
+      "e4",
+      "e6",
+      "d4",
+      "d5",
+      "Nc3",
+      "Nf6",
+      "e5",
+      "Nfd7",
+      "f4",
+      "c5",
+      "Nf3",
+      "Nc6"
+    ]
+  },
+  {
+    "id": "caro-kann",
+    "name": "Caro-Kann",
+    "eco": "B18",
+    "description": "Solide Struktur mit c6 und Läufer nach f5.",
+    "moves": [
+      "e4",
+      "c6",
+      "d4",
+      "d5",
+      "Nc3",
+      "dxe4",
+      "Nxe4",
+      "Bf5",
+      "Ng3",
+      "Bg6",
+      "h4",
+      "h6"
+    ]
+  },
+  {
+    "id": "damengambit-abgelehnt",
+    "name": "Damengambit (abgelehnt)",
+    "eco": "D37",
+    "description": "Klassisches Damengambit mit e6.",
+    "moves": [
+      "d4",
+      "d5",
+      "c4",
+      "e6",
+      "Nc3",
+      "Nf6",
+      "Bg5",
+      "Be7",
+      "e3",
+      "O-O",
+      "Nf3",
+      "h6"
+    ]
+  },
+  {
+    "id": "königsindisch",
+    "name": "Königsindisch",
+    "eco": "E60",
+    "description": "Schwarz spielt auf der Königsflanke.",
+    "moves": [
+      "d4",
+      "Nf6",
+      "c4",
+      "g6",
+      "Nc3",
+      "Bg7",
+      "e4",
+      "d6",
+      "Nf3",
+      "O-O",
+      "Be2",
+      "e5"
+    ]
+  },
+  {
+    "id": "londoner-system",
+    "name": "Londoner System",
+    "eco": "D02",
+    "description": "Aufbau mit Bf4 und e3.",
+    "moves": [
+      "d4",
+      "d5",
+      "Bf4",
+      "Nf6",
+      "e3",
+      "e6",
+      "Nf3",
+      "c5",
+      "c3",
+      "Nc6",
+      "Nbd2",
+      "Bd6"
+    ]
+  },
+  {
+    "id": "skandinavisch",
+    "name": "Skandinavisch",
+    "eco": "B01",
+    "description": "Schwarz tauscht sofort im Zentrum.",
+    "moves": [
+      "e4",
+      "d5",
+      "exd5",
+      "Qxd5",
+      "Nc3",
+      "Qa5",
+      "d4",
+      "Nf6",
+      "Nf3",
+      "c6",
+      "Bc4",
+      "Bf5"
+    ]
+  },
+  {
+    "id": "wiener-partie",
+    "name": "Wiener Partie",
+    "eco": "C29",
+    "description": "Weiß spielt früh f4.",
+    "moves": [
+      "e4",
+      "e5",
+      "Nc3",
+      "Nf6",
+      "f4",
+      "d5",
+      "fxe5",
+      "Nxe4",
+      "Nf3",
+      "Be7"
+    ]
+  },
+  {
+    "id": "englische-eröffnung",
+    "name": "Englische Eröffnung",
+    "eco": "A21",
+    "description": "Flügelspiel mit c4.",
+    "moves": [
+      "c4",
+      "e5",
+      "Nc3",
+      "Nf6",
+      "Nf3",
+      "Nc6",
+      "g3",
+      "d5",
+      "cxd5",
+      "Nxd5",
+      "Bg2",
+      "Nb6"
+    ]
+  },
+  {
+    "id": "reti-eröffnung",
+    "name": "Reti-Eröffnung",
+    "eco": "A05",
+    "description": "Flexibler Aufbau mit Nf3 und c4.",
+    "moves": [
+      "Nf3",
+      "d5",
+      "c4",
+      "e6",
+      "g3",
+      "Nf6",
+      "Bg2",
+      "Be7",
+      "O-O",
+      "O-O"
+    ]
+  },
+  {
+    "id": "berliner-verteidigung",
+    "name": "Berliner Verteidigung",
+    "eco": "C67",
+    "description": "Offene Variante der spanischen Partie.",
+    "moves": [
+      "e4",
+      "e5",
+      "Nf3",
+      "Nc6",
+      "Bb5",
+      "Nf6",
+      "O-O",
+      "Nxe4",
+      "d4",
+      "Nd6",
+      "Bxc6",
+      "dxc6"
+    ]
+  }
+]

@@ -1,0 +1,167 @@
+name: iOS Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  STOCKFISH_VERSION: "17.1"
+  PROJECT: ChessEnginePro.xcodeproj
+  SCHEME: ChessEnginePro
+
+jobs:
+  build:
+    name: Build, test and package IPA
+    runs-on: macos-15
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Cache Stockfish build
+        uses: actions/cache@v4
+        with:
+          path: |
+            Vendor/Stockfish
+            Build/Stockfish
+          key: stockfish-${{ env.STOCKFISH_VERSION }}-${{ runner.arch }}-v4
+
+      - name: Build Stockfish (device + simulator)
+        run: |
+          chmod +x scripts/*.sh
+          ALLOW_STUB=0 ./scripts/build-stockfish.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Show available simulators
+        run: xcrun simctl list devices available | head -40
+
+      - name: Run unit tests (chess rules, perft, PGN, engine)
+        run: |
+          set -o pipefail
+          mkdir -p artifacts
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            | tee artifacts/test.log
+
+      - name: Archive app (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath artifacts/ChessEnginePro.xcarchive \
+            -derivedDataPath DerivedData \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee artifacts/archive.log
+
+      - name: Verify embedded Stockfish
+        run: |
+          APP="artifacts/ChessEnginePro.xcarchive/Products/Applications/ChessEnginePro.app"
+          test -d "$APP"
+          lipo -info "$APP/ChessEnginePro"
+          echo "--- Stockfish symbols ---"
+          nm -g "$APP/ChessEnginePro" | grep -c "stockfish_main" || true
+
+      - name: Package IPA
+        run: ./scripts/package-ipa.sh artifacts/ChessEnginePro.xcarchive artifacts/ChessEnginePro.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChessEnginePro-ipa
+          path: artifacts/ChessEnginePro.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            artifacts/test.log
+            artifacts/archive.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: ChessEnginePro-ipa
+          path: dist
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=v1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: CHESS ENGINE PRO ${{ steps.version.outputs.version }}
+          files: dist/ChessEnginePro.ipa
+          fail_on_unmatched_files: true
+          body: |
+            ## CHESS ENGINE PRO ${{ steps.version.outputs.version }}
+
+            Native iOS App mit eingebetteter Stockfish-Engine, Analysebrett mit
+            MultiPV-Pfeilen, Spielstil-Profilen, Trainingssystem und
+            Chess.com-Integration.
+
+            **Build-Informationen**
+            - Stockfish: ${{ env.STOCKFISH_VERSION }} (statisch für arm64 iOS gebaut)
+            - Signierung: unsigniert – Installation über Sideloadly oder AltStore
+            - Bundle-ID: `com.chessenginepro.app`
+            - Zielframework: iOS 17.0 oder neuer, arm64
+
+            **Installation mit Sideloadly**
+            1. Sideloadly auf macOS oder Windows installieren und das iPhone anschließen.
+            2. Die Datei `ChessEnginePro.ipa` in Sideloadly ziehen.
+            3. Die eigene Apple-ID eintragen (Sideloadly signiert die App lokal).
+            4. Auf „Start“ tippen und auf dem iPhone unter
+               Einstellungen → Allgemein → VPN & Geräteverwaltung das Profil vertrauen.
+            5. Bei kostenlosen Apple-IDs muss die App alle 7 Tage neu signiert werden.
+
+            Die IPA ist bewusst unsigniert, damit keine Zertifikate im Repository liegen.

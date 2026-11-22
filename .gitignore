@@ -1,0 +1,27 @@
+# --- Xcode ---
+build/
+artifacts/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+.swiftpm/
+.swiftpm-lock
+
+# --- Generated project (xcodegen output) ---
+ChessEnginePro.xcodeproj/
+
+# --- Stockfish build artifacts (fetched/built by scripts/build-stockfish.sh) ---
+Vendor/Stockfish/
+Build/Stockfish/
+Build/Stockfish-stub/
+
+# --- macOS ---
+.DS_Store
+
+# --- lokale Tools (GitHub CLI) ---
+.tools/

@@ -1,0 +1,782 @@
+[
+  {
+    "id": "mate1-01",
+    "title": "Matt in 1 #01",
+    "fen": "4Q3/8/6R1/8/8/8/7k/5K2 w - - 0 1",
+    "solution": [
+      "e8h8"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-02",
+    "title": "Matt in 1 #02",
+    "fen": "4k3/Q7/8/2R5/8/8/4K3/8 w - - 0 1",
+    "solution": [
+      "c5c8"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-03",
+    "title": "Matt in 1 #03",
+    "fen": "8/8/4R3/8/8/8/3Q1K2/1k6 w - - 0 1",
+    "solution": [
+      "e6e1"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-04",
+    "title": "Matt in 1 #04",
+    "fen": "8/1Q6/2R5/8/3K4/8/8/k7 w - - 0 1",
+    "solution": [
+      "c6a6"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-05",
+    "title": "Matt in 1 #05",
+    "fen": "4R3/k7/2Q5/8/8/8/8/6K1 w - - 0 1",
+    "solution": [
+      "e8a8"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-06",
+    "title": "Matt in 1 #06",
+    "fen": "8/8/6Q1/2K5/8/8/2R5/k7 w - - 0 1",
+    "solution": [
+      "g6g1"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-07",
+    "title": "Matt in 1 #07",
+    "fen": "5K1k/8/Q7/8/8/8/8/8 w - - 0 1",
+    "solution": [
+      "a6h6"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-08",
+    "title": "Matt in 1 #08",
+    "fen": "8/k7/5K2/8/8/8/7R/1Q6 w - - 0 1",
+    "solution": [
+      "h2a2"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-09",
+    "title": "Matt in 1 #09",
+    "fen": "8/8/1Q5K/7R/8/8/8/k7 w - - 0 1",
+    "solution": [
+      "h5a5"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-10",
+    "title": "Matt in 1 #10",
+    "fen": "5R2/1K6/8/8/8/8/1Q6/7k w - - 0 1",
+    "solution": [
+      "f8f1"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-11",
+    "title": "Matt in 1 #11",
+    "fen": "8/8/k7/8/7K/8/1Q6/2R5 w - - 0 1",
+    "solution": [
+      "c1a1"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate1-12",
+    "title": "Matt in 1 #12",
+    "fen": "8/8/8/8/8/2R1K3/8/4k3 w - - 0 1",
+    "solution": [
+      "c3c1"
+    ],
+    "category": "mate1",
+    "difficulty": 1,
+    "theme": "Matt in 1",
+    "hint": "Zwinge den König in die Ecke und decke alle Fluchtfelder ab."
+  },
+  {
+    "id": "mate2-01",
+    "title": "Matt in 2 #01",
+    "fen": "8/8/8/7k/8/8/5K2/Q2R4 w - - 0 1",
+    "solution": [
+      "a1g7",
+      "h5h4",
+      "d1h1"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-02",
+    "title": "Matt in 2 #02",
+    "fen": "1k6/8/K7/8/8/8/6R1/8 w - - 0 1",
+    "solution": [
+      "g2c2",
+      "b8a8",
+      "c2c8"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-03",
+    "title": "Matt in 2 #03",
+    "fen": "8/8/8/7k/6R1/8/2K5/1Q6 w - - 0 1",
+    "solution": [
+      "b1d1",
+      "h5h6",
+      "d1h1"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-04",
+    "title": "Matt in 2 #04",
+    "fen": "8/8/6Q1/K7/1R6/8/8/2k5 w - - 0 1",
+    "solution": [
+      "g6g2",
+      "c1d1",
+      "b4b1"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-05",
+    "title": "Matt in 2 #05",
+    "fen": "8/8/k7/2Q5/8/7K/8/4R3 w - - 0 1",
+    "solution": [
+      "c5b4",
+      "a6a7",
+      "e1a1"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-06",
+    "title": "Matt in 2 #06",
+    "fen": "3Q2R1/8/7k/5K2/8/8/8/8 w - - 0 1",
+    "solution": [
+      "d8e8",
+      "h6h7",
+      "e8g6"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-07",
+    "title": "Matt in 2 #07",
+    "fen": "8/6k1/5R2/8/8/3Q2K1/8/8 w - - 0 1",
+    "solution": [
+      "d3g6",
+      "g7h8",
+      "f6f8"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-08",
+    "title": "Matt in 2 #08",
+    "fen": "4K3/8/2k5/8/1Q6/8/8/4R3 w - - 0 1",
+    "solution": [
+      "e1d1",
+      "c6c7",
+      "d1c1"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-09",
+    "title": "Matt in 2 #09",
+    "fen": "8/8/8/8/k7/2K5/8/3R4 w - - 0 1",
+    "solution": [
+      "d1d5",
+      "a4a3",
+      "d5a5"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate2-10",
+    "title": "Matt in 2 #10",
+    "fen": "6k1/8/4K2R/8/8/8/8/8 w - - 0 1",
+    "solution": [
+      "e6f6",
+      "g8f8",
+      "h6h8"
+    ],
+    "category": "mate2",
+    "difficulty": 2,
+    "theme": "Matt in 2",
+    "hint": "Suche einen Zug, der dem Gegner nur eine Antwort lässt."
+  },
+  {
+    "id": "mate3-01",
+    "title": "Matt in 3 #01",
+    "fen": "8/7R/8/8/6K1/8/8/6k1 w - - 0 1",
+    "solution": [
+      "g4g3",
+      "g1f1",
+      "h7e7",
+      "f1g1",
+      "e7e1"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-02",
+    "title": "Matt in 3 #02",
+    "fen": "5RQ1/4K3/8/4k3/8/8/8/8 w - - 0 1",
+    "solution": [
+      "g8g4",
+      "e5d5",
+      "f8c8",
+      "d5e5",
+      "c8c5"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-03",
+    "title": "Matt in 3 #03",
+    "fen": "6k1/7R/8/8/8/2Q5/7K/8 w - - 0 1",
+    "solution": [
+      "c3h3",
+      "g8f8",
+      "h3h5",
+      "f8g8",
+      "h5f7"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-04",
+    "title": "Matt in 3 #04",
+    "fen": "8/2R5/8/8/8/8/5K1k/8 w - - 0 1",
+    "solution": [
+      "c7c1",
+      "h2h3",
+      "c1c4",
+      "h3h2",
+      "c4h4"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-05",
+    "title": "Matt in 3 #05",
+    "fen": "8/8/8/1Q3K2/8/8/R7/4k3 w - - 0 1",
+    "solution": [
+      "a2b2",
+      "e1d1",
+      "b5b4",
+      "d1c1",
+      "b4d2"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-06",
+    "title": "Matt in 3 #06",
+    "fen": "1k6/R6K/8/8/8/3Q4/8/8 w - - 0 1",
+    "solution": [
+      "d3a3",
+      "b8c8",
+      "a3a5",
+      "c8b8",
+      "a5c7"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-07",
+    "title": "Matt in 3 #07",
+    "fen": "2R5/8/8/2Q5/5K2/8/6k1/8 w - - 0 1",
+    "solution": [
+      "c8h8",
+      "g2f1",
+      "f4f3",
+      "f1e1",
+      "c5c1"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "mate3-08",
+    "title": "Matt in 3 #08",
+    "fen": "8/3Q4/8/5K2/7k/8/8/8 w - - 0 1",
+    "solution": [
+      "f5f4",
+      "h4h5",
+      "d7d6",
+      "h5h4",
+      "d6h6"
+    ],
+    "category": "mate3",
+    "difficulty": 4,
+    "theme": "Matt in 3",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-01",
+    "title": "Endspiel-Technik #01",
+    "fen": "2k5/8/N7/1K6/8/8/8/7R w - - 0 1",
+    "solution": [
+      "b5c6",
+      "c8d8",
+      "h1e1",
+      "d8c8",
+      "e1e8"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-02",
+    "title": "Endspiel-Technik #02",
+    "fen": "8/8/3K4/k7/8/8/1N2R3/8 w - - 0 1",
+    "solution": [
+      "d6c5",
+      "a5a6",
+      "e2e7",
+      "a6a5",
+      "e7a7"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-03",
+    "title": "Endspiel-Technik #03",
+    "fen": "3k4/8/8/4K3/8/8/8/4R3 w - - 0 1",
+    "solution": [
+      "e5d6",
+      "d8c8",
+      "e1b1",
+      "c8d8",
+      "b1b8"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-04",
+    "title": "Endspiel-Technik #04",
+    "fen": "8/8/8/8/2K5/kN6/3R4/8 w - - 0 1",
+    "solution": [
+      "c4c3",
+      "a3a4",
+      "d2d5",
+      "a4a3",
+      "d5a5"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-05",
+    "title": "Endspiel-Technik #05",
+    "fen": "8/2Q5/8/8/8/4K3/8/3k4 w - - 0 1",
+    "solution": [
+      "e3d3",
+      "d1e1",
+      "c7f7",
+      "e1d1",
+      "f7f1"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-06",
+    "title": "Endspiel-Technik #06",
+    "fen": "1R6/8/8/8/8/7k/5K2/8 w - - 0 1",
+    "solution": [
+      "b8b4",
+      "h3h2",
+      "b4b3",
+      "h2h1",
+      "b3h3"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-07",
+    "title": "Endspiel-Technik #07",
+    "fen": "4K2k/6R1/8/8/8/4N3/8/8 w - - 0 1",
+    "solution": [
+      "g7g6",
+      "h8h7",
+      "e8f7",
+      "h7h8",
+      "g6h6"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "endgame-08",
+    "title": "Endspiel-Technik #08",
+    "fen": "3k4/8/4K3/8/8/8/6Q1/8 w - - 0 1",
+    "solution": [
+      "g2c2",
+      "d8e8",
+      "c2c7",
+      "e8f8",
+      "c7f7"
+    ],
+    "category": "endgame",
+    "difficulty": 3,
+    "theme": "Endspiel-Technik",
+    "hint": "Der erste Zug ist ein Opfer oder ein Tempogewinn – prüfe alle Schachgebote."
+  },
+  {
+    "id": "tactics-01",
+    "title": "Materialgewinn: Nxe8",
+    "fen": "4q3/8/3N4/8/7B/8/3k4/7K w - - 0 1",
+    "solution": [
+      "d6e8"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-02",
+    "title": "Materialgewinn: Nxd6",
+    "fen": "8/5N2/3r4/1p4K1/8/6k1/8/8 w - - 0 1",
+    "solution": [
+      "f7d6"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-03",
+    "title": "Materialgewinn: Rxa7",
+    "fen": "8/r3R3/7K/8/8/8/8/3k4 w - - 0 1",
+    "solution": [
+      "e7a7"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-04",
+    "title": "Materialgewinn: Qxb8",
+    "fen": "1q2Q3/8/8/8/2K3P1/8/5k2/8 w - - 0 1",
+    "solution": [
+      "e8b8"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-05",
+    "title": "Materialgewinn: Qxb6+",
+    "fen": "3Q4/8/1q4k1/8/8/6P1/2K5/8 w - - 0 1",
+    "solution": [
+      "d8b6"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-06",
+    "title": "Materialgewinn: Bxh2",
+    "fen": "8/7N/8/4B3/8/8/7q/1k2K3 w - - 0 1",
+    "solution": [
+      "e5h2"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-07",
+    "title": "Materialgewinn: Kxb7",
+    "fen": "3Q4/1r3k2/2K5/8/8/8/8/8 w - - 0 1",
+    "solution": [
+      "c6b7"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-08",
+    "title": "Materialgewinn: Qxa5",
+    "fen": "7k/4K3/8/r1Q5/8/8/8/8 w - - 0 1",
+    "solution": [
+      "c5a5"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-09",
+    "title": "Materialgewinn: Qxh1",
+    "fen": "8/8/8/8/8/P5k1/1K6/3Q3q w - - 0 1",
+    "solution": [
+      "d1h1"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "tactics-10",
+    "title": "Materialgewinn: Qxf2",
+    "fen": "8/8/8/P5K1/k7/6Q1/5q2/8 w - - 0 1",
+    "solution": [
+      "g3f2"
+    ],
+    "category": "tactics",
+    "difficulty": 2,
+    "theme": "Materialgewinn",
+    "hint": "Eine gegnerische Figur steht ungedeckt."
+  },
+  {
+    "id": "defense-01",
+    "title": "Rette die Stellung",
+    "fen": "8/6q1/8/8/5k2/7K/8/8 w - - 0 1",
+    "solution": [
+      "h3h2"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-02",
+    "title": "Rette die Stellung",
+    "fen": "5k1K/2Nq4/8/8/8/8/8/8 w - - 0 1",
+    "solution": [
+      "c7e6"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-03",
+    "title": "Rette die Stellung",
+    "fen": "8/8/4n3/2Q5/k7/2K5/8/8 b - - 0 1",
+    "solution": [
+      "e6c5"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-04",
+    "title": "Rette die Stellung",
+    "fen": "3q4/8/8/8/8/8/5k1K/8 w - - 0 1",
+    "solution": [
+      "h2h3"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-05",
+    "title": "Rette die Stellung",
+    "fen": "4k3/8/4K3/3Q4/8/8/8/8 b - - 0 1",
+    "solution": [
+      "e8f8"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-06",
+    "title": "Rette die Stellung",
+    "fen": "8/8/8/8/b7/6Q1/8/5K1k b - - 0 1",
+    "solution": [
+      "a4b5"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-07",
+    "title": "Rette die Stellung",
+    "fen": "8/8/5K1k/4Q3/8/8/8/8 b - - 0 1",
+    "solution": [
+      "h6h7"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-08",
+    "title": "Rette die Stellung",
+    "fen": "2k5/6Qb/1K6/8/8/8/8/8 b - - 0 1",
+    "solution": [
+      "c8d8"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-09",
+    "title": "Rette die Stellung",
+    "fen": "K7/8/2k5/8/8/1q6/3B4/8 w - - 0 1",
+    "solution": [
+      "d2b4"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  },
+  {
+    "id": "defense-10",
+    "title": "Rette die Stellung",
+    "fen": "1K5R/3q4/k7/8/8/8/8/8 w - - 0 1",
+    "solution": [
+      "h8h6"
+    ],
+    "category": "defense",
+    "difficulty": 3,
+    "theme": "Verteidigung",
+    "hint": "Nur ein Zug verhindert das Matt – prüfe Schachgebote und Abzugsmöglichkeiten."
+  }
+]
