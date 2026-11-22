@@ -49,7 +49,7 @@ struct PuzzleSessionView: View {
                         .foregroundStyle(Theme.secondaryText)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Text(current.map { "\(index + 1)/\(puzzles.count)" } ?? "–")
+                    Text(current.map { _ in "\(index + 1)/\(puzzles.count)" } ?? "–")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Theme.secondaryText)
                 }
