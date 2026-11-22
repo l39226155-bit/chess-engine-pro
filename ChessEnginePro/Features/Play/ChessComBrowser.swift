@@ -14,6 +14,7 @@
 
 import Foundation
 import Combine
+import SwiftUI
 import WebKit
 import UIKit
 
