@@ -186,6 +186,36 @@ Zertifikate, Provisioning-Profile oder Passwörter im Repository. Sideloadly
 
 ---
 
-## 6. Version
+## 6. Persistente WebView, Tabs und Live-Synchronisation
 
-`1.0.0` (Build 1) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+**Persistente Chess.com-WebView.** Die `WKWebView` gehört `AppEnvironment` und wird
+genau einmal erzeugt. `RootView` hält die Chess.com-Ebene dauerhaft im View-Baum
+und blendet sie nur aus (`opacity`, `allowsHitTesting`), statt sie zu zerstören.
+Dadurch bleiben Seite, Cookies/Sitzung, Scrollposition, laufende Partie und
+JavaScript-Zustand über jeden Tabwechsel erhalten; `WebViewContainer.updateUIView`
+lädt nie nach. Geladen wird erst beim ersten Besuch des Tabs (`startIfNeeded()`).
+
+**Tabs.** HOME · CHESS.COM · STOCKFISH · TRAINING · SETTINGS (`AppTab`).
+
+**EngineManager.** Zentraler Besitzer der Engine: wählt Backend (Stockfish oder
+eingebaute Engine), setzt Threads/Hash/MultiPV und ist der einzige Ort, der
+`stop()` aufruft. Bei `scenePhase == .background` werden Berechnungen pausiert,
+beim Zurückkehren setzt `AnalysisManager.resumeAfterBackground()` sie fort.
+
+**LivePositionSync.** Jede Brettänderung (Zug, Undo, Reset, Editor, PGN-Import,
+Sprung zu Ply) läuft durch `LivePositionSync.publish(...)`. Vor der Übergabe an
+Stockfish wird die Stellung validiert: FEN-Rundreise, genau ein König je Seite,
+keine Bauern auf der Grundlinie, Gegner nicht im Schach, En-passant-Feld
+konsistent. Unveränderte Stellungen werden dedupliziert; erst danach startet die
+Engine neu. Der Snapshot enthält FEN, Zugrecht, letzten Zug (SAN), Ply,
+Zugfolge, Spielende und die Zugart (Rochade, En passant, Umwandlung, Doppelschritt,
+Schlagen) – sichtbar im Stockfish-Tab inkl. Fortschrittsbalken (Tiefe/Zeit).
+
+**Tests:** `ChessEngineProTests/LiveSyncTests.swift` deckt Veröffentlichung,
+Deduplizierung, Zugarten, Matt-Erkennung und alle Ablehnungsgründe ab.
+
+---
+
+## 7. Version
+
+`1.1.0` (Build 2) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).

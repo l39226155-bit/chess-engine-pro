@@ -26,6 +26,7 @@ struct AnalysisView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 header
+                liveStatusCard
                 boardSection
                 annotationRow
                 boardToolbar
@@ -95,6 +96,62 @@ struct AnalysisView: View {
             }
             .buttonStyle(IconButtonStyle())
         }
+    }
+
+    // MARK: - Live synchronisation
+
+    private var liveStatusCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(analysis.isAnalyzing ? Theme.accent : Theme.secondaryText)
+                    .frame(width: 6, height: 6)
+                Text(analysis.isAnalyzing ? "Live-Analyse läuft" : "Live-Position")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.text)
+                if let snapshot = analysis.liveSnapshot {
+                    Pill(text: "Zug \(snapshot.ply)", icon: "number")
+                    if let kind = snapshot.moveKind {
+                        Pill(text: kind.localizedTitle, color: Theme.info)
+                    }
+                }
+                Spacer(minLength: 0)
+                if let snapshot = analysis.liveSnapshot {
+                    Text(snapshot.statusText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+
+            if analysis.isAnalyzing {
+                ProgressView(value: max(0.02, analysis.analysisProgress))
+                    .progressViewStyle(.linear)
+                    .tint(Theme.accent)
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: analysis.liveValidation.isValid ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(analysis.liveValidation.isValid ? Theme.accent : Theme.warning)
+                Text(analysis.liveValidation.isValid
+                     ? "FEN validiert · \(analysis.liveChangeCount) Stellungswechsel"
+                     : analysis.liveValidation.summary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if let fen = analysis.liveSnapshot?.fen {
+                    Text(fen)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 150, alignment: .trailing)
+                }
+            }
+        }
+        .premiumCard(padding: 12, radius: 14)
     }
 
     private var nodeText: String {

@@ -186,7 +186,7 @@ struct ProfileView: View {
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
-                environment.selectedTab = .play
+                environment.selectedTab = .chessCom
             } label: {
                 Label("Zum Play-Tab", systemImage: "safari")
                     .frame(maxWidth: .infinity)

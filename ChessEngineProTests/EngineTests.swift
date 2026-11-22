@@ -97,7 +97,8 @@ final class EngineTests: XCTestCase {
         settings.settings.engineEnabled = true
         settings.settings.backend = .builtIn
 
-        let manager = AnalysisManager(settings: settings)
+        let manager = AnalysisManager(settings: settings,
+                                      engines: EngineManager(settings: settings))
         guard let e2e4 = manager.board.move(from: Square(name: "e2")!, to: Square(name: "e4")!) else {
             return XCTFail("Zug e2e4 nicht gefunden")
         }

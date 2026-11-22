@@ -10,7 +10,7 @@ import SwiftUI
 struct PlayView: View {
 
     @EnvironmentObject private var environment: AppEnvironment
-    @StateObject private var browser = ChessComBrowser()
+    @EnvironmentObject private var browser: ChessComBrowser
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,7 +32,17 @@ struct PlayView: View {
             quickLinks
         }
         .background(Theme.background)
-        .onAppear { browser.refreshSessionState() }
+        .onAppear {
+            if environment.selectedTab == .chessCom { browser.startIfNeeded() }
+            browser.refreshSessionState()
+        }
+        .onChange(of: environment.selectedTab) { _, newValue in
+            // The web view is never rebuilt; visiting the tab only refreshes
+            // the local session badge (no navigation, no reload).
+            guard newValue == .chessCom else { return }
+            browser.startIfNeeded()
+            browser.refreshSessionState()
+        }
     }
 
     // MARK: - Chrome
@@ -154,7 +164,7 @@ struct PlayView: View {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.accent)
-            Text("Anmeldung erfolgt über die offizielle Chess.com-Seite. Keine Passwörter in der App.")
+            Text("Sitzung und Partie bleiben beim Tabwechsel erhalten. Anmeldung nur über die offizielle Chess.com-Seite.")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.secondaryText)
                 .lineLimit(2)

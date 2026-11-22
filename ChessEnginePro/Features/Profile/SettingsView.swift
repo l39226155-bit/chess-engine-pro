@@ -269,7 +269,7 @@ struct SettingsView: View {
             DividerLine()
             Button {
                 dismiss()
-                environment.selectedTab = .play
+                environment.selectedTab = .chessCom
             } label: {
                 Label("Chess.com-Sitzung verwalten", systemImage: "safari")
                     .frame(maxWidth: .infinity)

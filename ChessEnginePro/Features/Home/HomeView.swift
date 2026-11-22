@@ -81,7 +81,7 @@ struct HomeView: View {
             }
 
             Button {
-                environment.selectedTab = .play
+                environment.selectedTab = .chessCom
             } label: {
                 Label("Chess.com öffnen", systemImage: "arrow.up.right.square.fill")
             }
@@ -107,7 +107,7 @@ struct HomeView: View {
                                 subtitle: "Brett & Engine",
                                 tint: Theme.accent) {
                     analysis.reset()
-                    environment.selectedTab = .analysis
+                    environment.selectedTab = .stockfish
                 }
                 QuickActionCard(icon: "doc.badge.arrow.up",
                                 title: "PGN importieren",
@@ -125,7 +125,7 @@ struct HomeView: View {
                                 title: "Engine-Setup",
                                 subtitle: "Tiefe & Threads",
                                 tint: Color(hex: 0xC2A6F0)) {
-                    environment.selectedTab = .profile
+                    environment.selectedTab = .settings
                 }
             }
         }
@@ -150,7 +150,7 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 Button {
                     analysis.analyze()
-                    environment.selectedTab = .analysis
+                    environment.selectedTab = .stockfish
                 } label: {
                     Label("Analyse öffnen", systemImage: "play.fill")
                 }

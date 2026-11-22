@@ -36,6 +36,7 @@ final class ChessComBrowser: NSObject, ObservableObject {
     let webView: WKWebView
 
     private var observations: [NSKeyValueObservation] = []
+    private var hasStarted = false
 
     static let homeURL = URL(string: "https://www.chess.com/")!
     static let loginURL = URL(string: "https://www.chess.com/login_and_go?returnUrl=https%3A%2F%2Fwww.chess.com%2Fhome")!
@@ -65,7 +66,16 @@ final class ChessComBrowser: NSObject, ObservableObject {
         webView.scrollView.keyboardDismissMode = .interactive
 
         observe()
-        load(Self.homeURL)
+    }
+
+    /// Loads Chess.com exactly once. The browser itself is owned by
+    /// AppEnvironment and therefore outlives every SwiftUI view.
+    func startIfNeeded() {
+        guard !hasStarted else { return }
+        hasStarted = true
+        if webView.url == nil {
+            load(Self.homeURL)
+        }
     }
 
     // MARK: - KVO

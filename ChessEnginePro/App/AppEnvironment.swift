@@ -10,30 +10,30 @@ import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case home
-    case play
-    case analysis
+    case chessCom
+    case stockfish
     case training
-    case profile
+    case settings
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .home: return "Home"
-        case .play: return "Play"
-        case .analysis: return "Analyse"
+        case .chessCom: return "Chess.com"
+        case .stockfish: return "Stockfish"
         case .training: return "Training"
-        case .profile: return "Profil"
+        case .settings: return "Settings"
         }
     }
 
     var icon: String {
         switch self {
         case .home: return "house.fill"
-        case .play: return "safari.fill"
-        case .analysis: return "square.grid.3x3.fill"
+        case .chessCom: return "safari.fill"
+        case .stockfish: return "cpu"
         case .training: return "graduationcap.fill"
-        case .profile: return "person.crop.circle.fill"
+        case .settings: return "gearshape.fill"
         }
     }
 }
@@ -46,6 +46,10 @@ final class AppEnvironment: ObservableObject {
     let analysis: AnalysisManager
     let review: GameReviewController
     let store: AnalysisStore
+    /// Long lived Chess.com web view - created once, never torn down.
+    let browser: ChessComBrowser
+    /// Central engine owner (single instance, lifecycle aware).
+    let engineManager: EngineManager
 
     @Published var selectedTab: AppTab = .home
     @Published var toastMessage: String?
@@ -54,11 +58,36 @@ final class AppEnvironment: ObservableObject {
 
     init() {
         let settings = SettingsStore()
+        let engineManager = EngineManager(settings: settings)
+        let analysis = AnalysisManager(settings: settings, engines: engineManager)
+
         self.settings = settings
+        self.engineManager = engineManager
+        self.analysis = analysis
         self.stats = TrainingStatsStore()
-        self.analysis = AnalysisManager(settings: settings)
         self.review = GameReviewController(settings: settings)
         self.store = AnalysisStore.shared
+        self.browser = ChessComBrowser()
+
+        engineManager.suspendHandler = { [weak analysis] in
+            analysis?.pauseForBackground()
+        }
+        engineManager.resumeHandler = { [weak analysis] in
+            analysis?.resumeAfterBackground()
+        }
+    }
+
+    /// iOS lifecycle: stop heavy work in the background, continue on return.
+    func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .background:
+            engineManager.suspend()
+        case .active:
+            engineManager.resume()
+            if selectedTab == .chessCom { browser.refreshSessionState() }
+        default:
+            break
+        }
     }
 
     func showToast(_ message: String) {
@@ -76,7 +105,7 @@ final class AppEnvironment: ObservableObject {
     /// Loads an imported game into the analysis screen.
     func openInAnalysis(game: PGNGame) {
         analysis.load(game: game)
-        selectedTab = .analysis
+        selectedTab = .stockfish
         showToast("Partie geladen – Analyse läuft")
     }
 
@@ -84,14 +113,14 @@ final class AppEnvironment: ObservableObject {
     func openInAnalysis(fen: String) {
         do {
             try analysis.setFEN(fen)
-            selectedTab = .analysis
+            selectedTab = .stockfish
         } catch {
             showToast("Ungültige FEN")
         }
     }
 
     func startGameReview(game: PGNGame) {
-        selectedTab = .analysis
+        selectedTab = .stockfish
         showToast("Partieprüfung gestartet")
     }
 }

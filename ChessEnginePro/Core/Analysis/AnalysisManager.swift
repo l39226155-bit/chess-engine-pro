@@ -58,6 +58,13 @@ final class AnalysisManager: ObservableObject {
     @Published private(set) var hiddenArrowIDs: Set<String> = []
     @Published var showsArrows: Bool = true
 
+    // Live position synchronisation: only validated snapshots reach the engine.
+    @Published private(set) var liveSnapshot: PositionSnapshot?
+    @Published private(set) var liveValidation = PositionValidation.valid
+    @Published private(set) var liveChangeCount: Int = 0
+    @Published private(set) var analysisProgress: Double = 0
+    @Published private(set) var targetDepth: Int = 0
+
     // Preview (stepping through a variation)
     @Published private(set) var previewCandidate: CandidateMove?
     @Published private(set) var previewBoards: [Board] = []
@@ -69,32 +76,23 @@ final class AnalysisManager: ObservableObject {
     // MARK: - Dependencies
 
     private let settings: SettingsStore
-    private let stockfish = StockfishEngine.shared
-    private let fallback = FallbackEngine()
+    private let engines: EngineManager
+    let liveSync = LivePositionSync()
     private var analysisTask: Task<Void, Never>?
     private var generation = 0
+    private var resumePending = false
 
-    init(settings: SettingsStore) {
+    init(settings: SettingsStore, engines: EngineManager) {
         self.settings = settings
+        self.engines = engines
         self.style = settings.settings.style
     }
 
     // MARK: - Derived state
 
-    var activeEngine: ChessEngine {
-        switch settings.settings.backend {
-        case .builtIn:
-            return fallback
-        case .stockfish:
-            return stockfish.isAvailable ? stockfish : fallback
-        case .auto:
-            return stockfish.isAvailable ? stockfish : fallback
-        }
-    }
+    var activeEngine: ChessEngine { engines.engine }
 
-    var usesStockfish: Bool {
-        activeEngine === stockfish
-    }
+    var usesStockfish: Bool { engines.usesStockfish }
 
     var displayBoard: Board {
         if previewCandidate != nil, previewBoards.indices.contains(previewPly) {
@@ -176,10 +174,22 @@ final class AnalysisManager: ObservableObject {
         }
 
         let position = board
+        let validation = PositionValidation.validate(position)
+        guard validation.isValid else {
+            isAnalyzing = false
+            candidates = []
+            analysisProgress = 0
+            statusMessage = "Stellung ungültig – Analyse abgebrochen."
+            return
+        }
+        syncLivePosition(reason: .edit)
+
         let engine = activeEngine
         let limits = settings.settings.limits
         engineName = engine.displayName
-        configure(engine)
+        targetDepth = settings.settings.useTimeLimit ? 0 : max(1, limits.depth)
+        analysisProgress = 0
+        engines.configure()
 
         isAnalyzing = true
         statusMessage = nil
@@ -205,16 +215,40 @@ final class AnalysisManager: ObservableObject {
     func stop() {
         analysisTask?.cancel()
         analysisTask = nil
-        activeEngine.stop()
+        engines.stop()
         isAnalyzing = false
+        analysisProgress = 0
     }
 
-    private func configure(_ engine: ChessEngine) {
-        let settings = self.settings.settings
-        engine.setOption("Threads", value: "\(settings.effectiveThreads)")
-        engine.setOption("Hash", value: "\(max(16, settings.hashMB))")
-        engine.setOption("MultiPV", value: "\(max(1, settings.multiPV))")
-        engine.setOption("UCI_LimitStrength", value: "false")
+    /// iOS suspends the app: stop calculating, remember to continue later.
+    func pauseForBackground() {
+        resumePending = isAnalyzing
+        stop()
+        if resumePending {
+            statusMessage = "Analyse pausiert – App im Hintergrund."
+        }
+    }
+
+    func resumeAfterBackground() {
+        guard resumePending else { return }
+        resumePending = false
+        statusMessage = nil
+        if settings.settings.engineEnabled { analyze() }
+    }
+
+    /// Validates the current board and mirrors it into the live synchroniser.
+    private func syncLivePosition(reason: PositionSnapshot.ChangeReason,
+                                  before: Board? = nil,
+                                  move: Move? = nil) {
+        liveSync.publish(board: board,
+                         lastMove: lastMove,
+                         sanHistory: moveLog,
+                         reason: reason,
+                         before: before,
+                         move: move)
+        liveSnapshot = liveSync.snapshot
+        liveValidation = liveSync.validation
+        liveChangeCount = liveSync.changeCount
     }
 
     private func consume(update: EngineUpdate, position: Board, generation: Int) {
@@ -222,6 +256,12 @@ final class AnalysisManager: ObservableObject {
         depth = max(depth, update.depth)
         seldepth = max(seldepth, update.seldepth)
         nodes = max(nodes, update.nodes)
+
+        if targetDepth > 0 {
+            analysisProgress = min(1, Double(update.depth) / Double(targetDepth))
+        } else if let milliseconds = settings.settings.limits.moveTimeMs, milliseconds > 0 {
+            analysisProgress = min(1, Double(update.timeMs) / Double(milliseconds))
+        }
 
         guard let best = update.lines.first else { return }
         evaluation = best.score
@@ -293,13 +333,15 @@ final class AnalysisManager: ObservableObject {
     func play(_ move: Move) {
         guard board.isLegal(move) else { return }
         clearPreview()
+        let before = board
         let san = board.san(for: move)
-        history.append(HistoryEntry(board: board, move: move, san: san))
+        history.append(HistoryEntry(board: before, move: move, san: san))
         board.apply(move)
         lastMove = move
         moveLog = history.map { $0.san }
         sessionMoves.append(PGNMove(san: san, uci: move.uci))
         statusMessage = nil
+        syncLivePosition(reason: .move, before: before, move: move)
 
         if settings.settings.autoAnalyze {
             analyze(debounce: false)
@@ -322,6 +364,7 @@ final class AnalysisManager: ObservableObject {
         lastMove = history.last?.move
         moveLog = history.map { $0.san }
         if !sessionMoves.isEmpty { sessionMoves.removeLast() }
+        syncLivePosition(reason: .undo)
         analyze(debounce: false)
     }
 
@@ -337,6 +380,7 @@ final class AnalysisManager: ObservableObject {
         evaluation = .zero
         depth = 0
         nodes = 0
+        syncLivePosition(reason: .reset)
         analyze(debounce: false)
     }
 
@@ -350,6 +394,7 @@ final class AnalysisManager: ObservableObject {
         lastMove = nil
         depth = 0
         nodes = 0
+        syncLivePosition(reason: .edit)
         evaluateIfEnabled()
     }
 
@@ -381,6 +426,7 @@ final class AnalysisManager: ObservableObject {
         board = current
         lastMove = history.last?.move
         moveLog = history.map { $0.san }
+        syncLivePosition(reason: .imported)
         evaluateIfEnabled()
     }
 
@@ -391,6 +437,7 @@ final class AnalysisManager: ObservableObject {
         board = clamped == 0 ? (Board(fen: sessionStartFEN) ?? Board()) : history[clamped - 1].board.applying(history[clamped - 1].move)
         lastMove = clamped == 0 ? nil : history[clamped - 1].move
         moveLog = Array(history.prefix(clamped).map { $0.san })
+        syncLivePosition(reason: .jump)
         analyze(debounce: false)
     }
 
