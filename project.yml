@@ -30,6 +30,10 @@ targets:
       - path: ChessEnginePro
         excludes:
           - "**/*.md"
+          # The stub is only compiled into libstockfish.a by
+          # scripts/build-stockfish.sh; compiling it into the app would
+          # duplicate every sf_* symbol.
+          - "**/StockfishStub.cpp"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.chessenginepro.app
