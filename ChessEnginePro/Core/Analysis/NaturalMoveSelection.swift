@@ -286,3 +286,97 @@ enum NaturalMoveSelector {
         }
     }
 }
+
+// MARK: - Transparency
+
+/// Turns the features an engine line actually contains into a short German
+/// explanation. The text never claims more than the position shows: it lists
+/// the concrete tactical and structural features of the move and always states
+/// the evaluation cost against the best line.
+enum StrategicExplainer {
+
+    static func roleTitle(rank: Int) -> String {
+        switch rank {
+        case 1: return "Bester Zug"
+        case 2: return "Gute Alternative"
+        case 3: return "Interessante Variante"
+        default: return "Weitere Variante"
+        }
+    }
+
+    static func explain(features: MoveFeatures,
+                        quality: MoveQuality,
+                        score: EvalScore,
+                        best: EvalScore) -> String {
+        var ideas: [String] = []
+
+        if features.isCastle {
+            ideas.append("Bringt den König in Sicherheit und verbindet die Türme.")
+        }
+        if features.createsFork {
+            ideas.append("Greift zwei Figuren gleichzeitig an, also eine Gabel.")
+        }
+        if features.isCapture {
+            ideas.append("Nimmt \(materialTitle(features.capturedValue)) und verändert das Materialverhältnis.")
+        }
+        if features.isPromotion {
+            ideas.append("Wandelt den Bauern in eine neue Figur um.")
+        }
+        if features.isCheck {
+            ideas.append("Setzt den gegnerischen König unter Schach und erzwingt eine Antwort.")
+        }
+        if features.isSacrifice {
+            ideas.append("Das Zielfeld ist angegriffen – bewusstes Opfer für Initiative.")
+        }
+        if features.attacksQueenOrKing && !features.isCheck {
+            ideas.append("Erzeugt Druck auf Dame oder König.")
+        }
+        if features.developsPiece {
+            ideas.append("Entwickelt eine Figur aus der Grundstellung.")
+        }
+        if features.controlsCenter {
+            ideas.append("Kontrolliert ein Zentrumsfeld.")
+        }
+        if features.opensFile {
+            ideas.append("Öffnet eine Linie für den Turm.")
+        }
+        if features.mobilityDelta > 0 {
+            ideas.append("Erhöht die Bewegungsfreiheit um \(features.mobilityDelta) Züge.")
+        }
+        if features.isRetreat {
+            ideas.append("Zieht die Figur zurück, um sie günstiger einzusetzen.")
+        }
+        if features.isQuiet && ideas.isEmpty {
+            ideas.append("Ruhiger Aufbauzug ohne direkten Kontakt.")
+        }
+        if ideas.isEmpty {
+            ideas.append("Verbessert die Stellung ohne sofortige Drohung.")
+        }
+
+        let loss = EvalScore.loss(from: best, to: score)
+        let assessment: String
+        if loss == 0 {
+            assessment = "Bewertung \(score.display), gleichwertig zum besten Zug."
+        } else {
+            assessment = "Bewertung \(score.display), \(pawnText(loss)) unter dem besten Zug (\(quality.localizedTitle))."
+        }
+
+        return ideas.prefix(2).joined(separator: " ") + " " + assessment
+    }
+
+    private static func materialTitle(_ value: Int) -> String {
+        switch value {
+        case 100: return "einen Bauern"
+        case 320: return "einen Springer"
+        case 330: return "einen Läufer"
+        case 500: return "einen Turm"
+        case 900: return "die Dame"
+        case 0: return "Material"
+        default: return "Material im Wert von \(value)"
+        }
+    }
+
+    private static func pawnText(_ centipawns: Int) -> String {
+        String(format: "%.2f Bauern", Double(centipawns) / 100.0)
+    }
+}

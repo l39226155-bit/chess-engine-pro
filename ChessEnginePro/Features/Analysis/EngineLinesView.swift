@@ -44,6 +44,11 @@ struct CandidateRow: View {
                         .foregroundStyle(Theme.secondaryText.opacity(0.85))
                         .lineLimit(1)
                 }
+                Text(candidate.explanation)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.secondaryText.opacity(0.9))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 4)

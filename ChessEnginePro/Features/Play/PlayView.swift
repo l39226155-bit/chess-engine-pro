@@ -11,6 +11,7 @@ struct PlayView: View {
 
     @EnvironmentObject private var environment: AppEnvironment
     @EnvironmentObject private var browser: ChessComBrowser
+    @EnvironmentObject private var analysis: AnalysisManager
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +30,7 @@ struct PlayView: View {
                     errorBanner(message)
                 }
             }
+            liveStrip
             quickLinks
         }
         .background(Theme.background)
@@ -43,6 +45,64 @@ struct PlayView: View {
             browser.startIfNeeded()
             browser.refreshSessionState()
         }
+    }
+
+    // MARK: - Live detection
+
+    private var liveStrip: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(analysis.liveSource == .chessCom ? Theme.info : Theme.secondaryText)
+                .frame(width: 6, height: 6)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live-Erkennung")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.text)
+                Text(liveDetail)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            if analysis.isAnalyzing {
+                Text("T\(analysis.depth)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Theme.accent)
+            }
+
+            Button {
+                environment.selectedTab = .stockfish
+            } label: {
+                Text("Analyse")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.accent.opacity(0.14)))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Theme.panel)
+        .overlay(
+            Rectangle().fill(Theme.divider).frame(height: 1),
+            alignment: .top
+        )
+    }
+
+    private var liveDetail: String {
+        if analysis.liveSource == .chessCom, let snapshot = analysis.liveSnapshot {
+            let event = analysis.liveEvent?.kind.localizedTitle ?? "Stellung erkannt"
+            return "\(event) · Zug \(snapshot.ply) · \(snapshot.statusText)"
+        }
+        if browser.detectionCount > 0 {
+            return "\(browser.detectionCount) Messungen · noch keine gültige Stellung"
+        }
+        return "Öffne eine Partie oder Analyse auf Chess.com"
     }
 
     // MARK: - Chrome

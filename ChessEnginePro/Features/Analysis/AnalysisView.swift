@@ -30,6 +30,7 @@ struct AnalysisView: View {
                 boardSection
                 annotationRow
                 boardToolbar
+                naturalSelectionCard
                 engineVariantsCard
                 if analysis.isPreviewing { previewCard }
                 moveListCard
@@ -101,25 +102,55 @@ struct AnalysisView: View {
     // MARK: - Live synchronisation
 
     private var liveStatusCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(analysis.isAnalyzing ? Theme.accent : Theme.secondaryText)
-                    .frame(width: 6, height: 6)
-                Text(analysis.isAnalyzing ? "Live-Analyse läuft" : "Live-Position")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.text)
-                if let snapshot = analysis.liveSnapshot {
-                    Pill(text: "Zug \(snapshot.ply)", icon: "number")
-                    if let kind = snapshot.moveKind {
-                        Pill(text: kind.localizedTitle, color: Theme.info)
-                    }
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 7) {
+                Pill(text: analysis.liveSource.localizedTitle,
+                     color: analysis.liveSource == .chessCom ? Theme.info : Theme.accent,
+                     icon: analysis.liveSource.sfSymbol)
+                if let event = analysis.liveEvent {
+                    Pill(text: event.kind.localizedTitle, color: Theme.secondaryText)
                 }
                 Spacer(minLength: 0)
                 if let snapshot = analysis.liveSnapshot {
+                    Text("POSITION v\(snapshot.version)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+            }
+
+            HStack(spacing: 8) {
+                if let snapshot = analysis.liveSnapshot {
+                    Text("Zug \(snapshot.ply)")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.text)
                     Text(snapshot.statusText)
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(1)
+                    if let kind = snapshot.moveKind {
+                        Pill(text: kind.localizedTitle, color: Theme.info)
+                    }
+                } else {
+                    Text("Warte auf eine Stellung …")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                Spacer(minLength: 0)
+                if analysis.isAnalyzing {
+                    Text("\(Int(analysis.analysisProgress * 100))%")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Theme.accent)
+                }
+            }
+
+            if !analysis.lastDetectedMoves.isEmpty {
+                HStack(spacing: 4) {
+                    Text("Erkannt:")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Theme.secondaryText)
+                    Text(analysis.lastDetectedMoves.joined(separator: " "))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Theme.text)
                         .lineLimit(1)
                 }
             }
@@ -135,20 +166,20 @@ struct AnalysisView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(analysis.liveValidation.isValid ? Theme.accent : Theme.warning)
                 Text(analysis.liveValidation.isValid
-                     ? "FEN validiert · \(analysis.liveChangeCount) Stellungswechsel"
+                     ? analysis.syncStats.summary
                      : analysis.liveValidation.summary)
-                    .font(.system(size: 10))
+                    .font(.system(size: 9))
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                if let fen = analysis.liveSnapshot?.fen {
-                    Text(fen)
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(Theme.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 150, alignment: .trailing)
-                }
+            }
+
+            if let fen = analysis.liveSnapshot?.fen {
+                Text(fen)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
         }
         .premiumCard(padding: 12, radius: 14)
@@ -274,6 +305,89 @@ struct AnalysisView: View {
         }
         .buttonStyle(IconButtonStyle())
         .accessibilityLabel(label)
+    }
+
+    // MARK: - Natural move selection
+
+    private var naturalSelectionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Natural Move Selection",
+                          subtitle: "Bester Zug, Alternative und interessante Variante mit Begründung")
+
+            DividerLine()
+
+            if analysis.styleRankedCandidates.isEmpty {
+                EmptyStateView(icon: "cpu",
+                               title: "Noch keine Vorschläge",
+                               message: "Sobald eine gültige Stellung vorliegt, berechnet Stockfish die Varianten.")
+            } else {
+                let picks = Array(analysis.styleRankedCandidates.prefix(3))
+                VStack(spacing: 6) {
+                    ForEach(picks) { candidate in
+                        naturalSelectionRow(candidate)
+                    }
+                }
+            }
+        }
+        .premiumCard(padding: 14, radius: 16)
+    }
+
+    private func naturalSelectionRow(_ candidate: CandidateMove) -> some View {
+        let tint = color(for: candidate.rank)
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
+                Text(candidate.roleTitle)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(tint)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(tint.opacity(0.14)))
+
+                Text(candidate.san)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.text)
+
+                QualityBadge(quality: candidate.quality, compact: true)
+
+                Spacer(minLength: 0)
+
+                Text(candidate.score.display)
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(candidate.score.whiteCentipawns >= 0 ? Theme.text : Theme.secondaryText)
+            }
+
+            Text(candidate.explanation)
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(candidate.pvSAN.prefix(6).joined(separator: " "))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Theme.secondaryText.opacity(0.8))
+                .lineLimit(1)
+        }
+        .padding(9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(analysis.previewCandidate == candidate ? Theme.accent.opacity(0.10) : Theme.field)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if analysis.previewCandidate == candidate {
+                analysis.clearPreview()
+            } else {
+                analysis.preview(candidate)
+            }
+        }
+    }
+
+    private func color(for rank: Int) -> Color {
+        switch rank {
+        case 1: return Theme.accent
+        case 2: return Theme.info
+        default: return Theme.secondaryText
+        }
     }
 
     // MARK: - Engine variants

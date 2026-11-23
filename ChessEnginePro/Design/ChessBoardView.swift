@@ -22,6 +22,7 @@ struct ChessBoardView: View {
     var showArrowLabels: Bool = false
     var interactive: Bool = true
     var animate: Bool = true
+    var animatesArrows: Bool = true
     /// Providing this handler switches the board into editing mode.
     var onSquareTap: ((Square) -> Void)?
     var onMove: ((Move) -> Void)?
@@ -58,7 +59,8 @@ struct ChessBoardView: View {
                               orientation: orientation,
                               palette: arrowPalette,
                               squareSize: squareSize,
-                              showLabels: showArrowLabels)
+                              showLabels: showArrowLabels,
+                              animates: animatesArrows)
                 if showCoordinates {
                     coordinatesLayer(squareSize: squareSize)
                 }
@@ -316,75 +318,162 @@ struct ChessBoardView: View {
 
 // MARK: - Arrow renderer
 
+/// Draws the engine arrows with a short draw-in animation, so a new position
+/// and its new variants are visually traceable.
 struct ArrowRenderer: View {
     let arrows: [BoardArrow]
     let orientation: PieceColor
     let palette: ArrowPalette
     let squareSize: CGFloat
     var showLabels: Bool = false
+    var animates: Bool = true
+
+    @State private var reveal: CGFloat = 1
 
     var body: some View {
-        Canvas { context, size in
-            for arrow in arrows {
-                draw(arrow, context: &context, size: size)
+        ZStack {
+            ForEach(arrows) { arrow in
+                ArrowBody(arrow: arrow,
+                          orientation: orientation,
+                          color: palette.color(for: arrow.kind),
+                          reveal: reveal)
+            }
+
+            if showLabels {
+                ForEach(arrows) { arrow in
+                    if let label = arrow.label, !label.isEmpty {
+                        Text(label)
+                            .font(.system(size: squareSize * 0.22, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white)
+                            .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+                            .position(labelPoint(for: arrow))
+                            .allowsHitTesting(false)
+                    }
+                }
             }
         }
         .allowsHitTesting(false)
-        .drawingGroup()
+        .onAppear { restart() }
+        .onChange(of: arrows) { _, _ in restart() }
     }
 
-    private func draw(_ arrow: BoardArrow, context: inout GraphicsContext, size: CGSize) {
-        let from = point(arrow.from, size: size)
-        let to = point(arrow.to, size: size)
+    private func restart() {
+        guard animates else {
+            reveal = 1
+            return
+        }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { reveal = 0 }
+        withAnimation(.easeOut(duration: 0.34)) { reveal = 1 }
+    }
+
+    private func point(_ square: Square) -> CGPoint {
+        let file = orientation == .white ? square.file : 7 - square.file
+        let rank = orientation == .white ? 7 - square.rank : square.rank
+        return CGPoint(x: (CGFloat(file) + 0.5) * squareSize,
+                       y: (CGFloat(rank) + 0.5) * squareSize)
+    }
+
+    private func labelPoint(for arrow: BoardArrow) -> CGPoint {
+        let from = point(arrow.from)
+        let to = point(arrow.to)
+        return CGPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - squareSize * 0.16)
+    }
+}
+
+private struct ArrowBody: View {
+    let arrow: BoardArrow
+    let orientation: PieceColor
+    let color: Color
+    let reveal: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            let unit = min(proxy.size.width, proxy.size.height) / 8
+            let geometry = ArrowGeometry(arrow: arrow, orientation: orientation, unit: unit)
+
+            ZStack {
+                ArrowShaft(start: geometry.start, end: geometry.end, reveal: reveal)
+                    .stroke(color.opacity(0.9),
+                            style: StrokeStyle(lineWidth: unit * 0.13, lineCap: .round))
+
+                ArrowHead(tip: geometry.end,
+                          base: geometry.base,
+                          perpendicular: geometry.perpendicular,
+                          halfWidth: unit * 0.18)
+                    .fill(color.opacity(0.9))
+                    .opacity(Double(min(1, max(0, (reveal - 0.5) / 0.5))))
+            }
+        }
+    }
+}
+
+private struct ArrowGeometry {
+    var start: CGPoint
+    var end: CGPoint
+    var base: CGPoint
+    var perpendicular: CGPoint
+
+    init(arrow: BoardArrow, orientation: PieceColor, unit: CGFloat) {
+        func center(_ square: Square) -> CGPoint {
+            let file = orientation == .white ? square.file : 7 - square.file
+            let rank = orientation == .white ? 7 - square.rank : square.rank
+            return CGPoint(x: (CGFloat(file) + 0.5) * unit,
+                           y: (CGFloat(rank) + 0.5) * unit)
+        }
+
+        let from = center(arrow.from)
+        let to = center(arrow.to)
         let dx = to.x - from.x
         let dy = to.y - from.y
         let length = max(1, sqrt(dx * dx + dy * dy))
         let unitX = dx / length
         let unitY = dy / length
 
-        let start = CGPoint(x: from.x + unitX * squareSize * 0.30,
-                            y: from.y + unitY * squareSize * 0.30)
-        let end = CGPoint(x: to.x - unitX * squareSize * 0.26,
-                          y: to.y - unitY * squareSize * 0.26)
+        start = CGPoint(x: from.x + unitX * unit * 0.30,
+                        y: from.y + unitY * unit * 0.30)
+        end = CGPoint(x: to.x - unitX * unit * 0.26,
+                      y: to.y - unitY * unit * 0.26)
+        base = CGPoint(x: end.x - unitX * unit * 0.32,
+                       y: end.y - unitY * unit * 0.32)
+        perpendicular = CGPoint(x: -unitY, y: unitX)
+    }
+}
 
-        let color = palette.color(for: arrow.kind)
-        let lineWidth = squareSize * 0.13
+private struct ArrowShaft: Shape {
+    var start: CGPoint
+    var end: CGPoint
+    var reveal: CGFloat
 
-        var shaft = Path()
-        shaft.move(to: start)
-        shaft.addLine(to: end)
-        context.stroke(shaft,
-                       with: .color(color.opacity(0.9)),
-                       style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-
-        let headLength = squareSize * 0.32
-        let headWidth = squareSize * 0.18
-        let perpendicular = CGPoint(x: -unitY, y: unitX)
-        let base = CGPoint(x: end.x - unitX * headLength, y: end.y - unitY * headLength)
-
-        var head = Path()
-        head.move(to: end)
-        head.addLine(to: CGPoint(x: base.x + perpendicular.x * headWidth,
-                                 y: base.y + perpendicular.y * headWidth))
-        head.addLine(to: CGPoint(x: base.x - perpendicular.x * headWidth,
-                                 y: base.y - perpendicular.y * headWidth))
-        head.closeSubpath()
-        context.fill(head, with: .color(color.opacity(0.9)))
-
-        if showLabels, let label = arrow.label, !label.isEmpty {
-            let text = Text(label)
-                .font(.system(size: squareSize * 0.22, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.white)
-            let midpoint = CGPoint(x: (start.x + end.x) / 2,
-                                   y: (start.y + end.y) / 2 - squareSize * 0.16)
-            context.draw(text, at: midpoint)
-        }
+    var animatableData: CGFloat {
+        get { reveal }
+        set { reveal = newValue }
     }
 
-    private func point(_ square: Square, size: CGSize) -> CGPoint {
-        let unit = size.width / 8
-        let file = orientation == .white ? square.file : 7 - square.file
-        let rank = orientation == .white ? 7 - square.rank : square.rank
-        return CGPoint(x: (CGFloat(file) + 0.5) * unit, y: (CGFloat(rank) + 0.5) * unit)
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: start)
+        path.addLine(to: CGPoint(x: start.x + (end.x - start.x) * reveal,
+                                 y: start.y + (end.y - start.y) * reveal))
+        return path
+    }
+}
+
+private struct ArrowHead: Shape {
+    var tip: CGPoint
+    var base: CGPoint
+    var perpendicular: CGPoint
+    var halfWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: tip)
+        path.addLine(to: CGPoint(x: base.x + perpendicular.x * halfWidth,
+                                 y: base.y + perpendicular.y * halfWidth))
+        path.addLine(to: CGPoint(x: base.x - perpendicular.x * halfWidth,
+                                 y: base.y - perpendicular.y * halfWidth))
+        path.closeSubpath()
+        return path
     }
 }

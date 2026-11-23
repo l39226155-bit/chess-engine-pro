@@ -2,10 +2,14 @@
 //  LivePositionSync.swift
 //  CHESS ENGINE PRO
 //
-//  Single, validated path between the chessboard and the engine. Every board
-//  change in a supported analysis environment is turned into a PositionSnapshot
-//  after the position has been verified (FEN round trip, kings, pawns, checks,
+//  Single, validated path between a chessboard and the engine. Every board
+//  change - played locally or detected on the Chess.com page - is turned into a
+//  PositionSnapshot after verification (FEN round trip, kings, pawns, checks,
 //  en passant consistency). Only a valid snapshot is handed to Stockfish.
+//
+//  Every accepted position carries a monotonic version, so the interface and
+//  the engine can always tell which position they are looking at and can drop
+//  late or duplicated updates instead of showing a stale board.
 //
 
 import Foundation
@@ -103,6 +107,102 @@ struct PositionValidation: Equatable, Sendable {
     }
 }
 
+// MARK: - Source and events
+
+enum PositionSource: String, Equatable, Sendable {
+    case local
+    case chessCom
+
+    var localizedTitle: String {
+        switch self {
+        case .local: return "App-Brett"
+        case .chessCom: return "Chess.com"
+        }
+    }
+
+    var sfSymbol: String {
+        switch self {
+        case .local: return "square.grid.3x3"
+        case .chessCom: return "safari.fill"
+        }
+    }
+}
+
+/// Everything the pipeline can report for a new position.
+enum SyncEventKind: String, Equatable, Sendable {
+    case newGame
+    case whiteMove
+    case blackMove
+    case opponentMove
+    case gameOver
+    case reset
+    case positionLoaded
+    case edit
+    case undo
+    case jump
+
+    var localizedTitle: String {
+        switch self {
+        case .newGame: return "Neue Partie"
+        case .whiteMove: return "Weiß am Zug"
+        case .blackMove: return "Schwarz am Zug"
+        case .opponentMove: return "Gegner hat gezogen"
+        case .gameOver: return "Partie beendet"
+        case .reset: return "Zurückgesetzt"
+        case .positionLoaded: return "Stellung geladen"
+        case .edit: return "Stellung bearbeitet"
+        case .undo: return "Zug zurückgenommen"
+        case .jump: return "Position angesprungen"
+        }
+    }
+
+    var sfSymbol: String {
+        switch self {
+        case .newGame: return "flag.checkered"
+        case .whiteMove: return "circle.fill"
+        case .blackMove: return "circle"
+        case .opponentMove: return "person.fill"
+        case .gameOver: return "flag.fill"
+        case .reset: return "arrow.counterclockwise"
+        case .positionLoaded: return "square.and.arrow.down"
+        case .edit: return "square.and.pencil"
+        case .undo: return "arrow.uturn.backward"
+        case .jump: return "arrow.left.arrow.right"
+        }
+    }
+}
+
+struct PositionEvent: Equatable, Sendable, Identifiable {
+    var version: Int
+    var kind: SyncEventKind
+    var ply: Int
+    var sideToMove: PieceColor
+    var san: String?
+    var source: PositionSource
+
+    var id: Int { version }
+
+    var summary: String {
+        let turn = "\(sideToMove.localizedName) am Zug"
+        if let san = san, !san.isEmpty {
+            return "\(kind.localizedTitle) · \(san) · \(turn)"
+        }
+        return "\(kind.localizedTitle) · \(turn)"
+    }
+}
+
+struct SyncStatistics: Equatable, Sendable {
+    var received = 0
+    var accepted = 0
+    var duplicates = 0
+    var stale = 0
+    var rejected = 0
+
+    var summary: String {
+        "\(accepted) übernommen · \(duplicates) doppelt · \(stale) veraltet · \(rejected) verworfen"
+    }
+}
+
 // MARK: - Snapshot
 
 struct PositionSnapshot: Equatable, Identifiable, Sendable {
@@ -114,6 +214,7 @@ struct PositionSnapshot: Equatable, Identifiable, Sendable {
         case edit
         case imported
         case jump
+        case detected
 
         var localizedTitle: String {
             switch self {
@@ -123,6 +224,7 @@ struct PositionSnapshot: Equatable, Identifiable, Sendable {
             case .edit: return "Stellung bearbeitet"
             case .imported: return "Partie geladen"
             case .jump: return "Position angesprungen"
+            case .detected: return "Auf Chess.com erkannt"
             }
         }
     }
@@ -137,14 +239,17 @@ struct PositionSnapshot: Equatable, Identifiable, Sendable {
     var isGameOver: Bool
     var statusText: String
     var reason: ChangeReason
+    var version: Int
+    var source: PositionSource
+    var eventKind: SyncEventKind
 
-    var id: String { fen }
+    var id: String { fen + "#" + String(version) }
 }
 
 // MARK: - Synchroniser
 
-/// Collects validated positions, de-duplicates unchanged ones and exposes
-/// counters used by the UI and the tests.
+/// Collects validated positions, de-duplicates unchanged ones, rejects stale
+/// updates and exposes the counters used by the interface and the tests.
 final class LivePositionSync {
 
     private(set) var snapshot: PositionSnapshot?
@@ -152,6 +257,9 @@ final class LivePositionSync {
     private(set) var changeCount = 0
     private(set) var rejectedCount = 0
     private(set) var receivedCount = 0
+    private(set) var version = 0
+    private(set) var stats = SyncStatistics()
+    private(set) var events: [PositionEvent] = []
 
     /// Publishes a new position. Returns `true` when the snapshot changed.
     @discardableResult
@@ -160,19 +268,35 @@ final class LivePositionSync {
                  sanHistory: [String],
                  reason: PositionSnapshot.ChangeReason,
                  before: Board? = nil,
-                 move: Move? = nil) -> Bool {
+                 move: Move? = nil,
+                 source: PositionSource = .local,
+                 externalVersion: Int? = nil,
+                 explicitEvent: SyncEventKind? = nil,
+                 userColor: PieceColor? = nil,
+                 gameOverOverride: Bool? = nil) -> Bool {
         receivedCount += 1
+        stats.received += 1
+
+        // A late update from the page must never overwrite a newer position.
+        if let externalVersion = externalVersion, externalVersion <= version {
+            stats.stale += 1
+            return false
+        }
 
         let result = PositionValidation.validate(board)
         validation = result
         guard result.isValid else {
             rejectedCount += 1
+            stats.rejected += 1
             return false
         }
 
-        if let current = snapshot,
+        let ply = sanHistory.count
+        if explicitEvent == nil,
+           let current = snapshot,
            current.fen == board.fen,
-           current.sanHistory.count == sanHistory.count {
+           current.ply == ply {
+            stats.duplicates += 1
             return false
         }
 
@@ -182,19 +306,73 @@ final class LivePositionSync {
         }
 
         let status = board.status
+        let isOver = gameOverOverride ?? status.isFinished
+        let event = LivePositionSync.eventKind(previous: snapshot,
+                                               board: board,
+                                               ply: ply,
+                                               reason: reason,
+                                               userColor: userColor,
+                                               explicit: explicitEvent)
+
+        // Versions come from the page when it provides one, otherwise from the
+        // synchroniser itself. Both are strictly monotonic.
+        version = max(version + 1, externalVersion ?? 0)
         snapshot = PositionSnapshot(fen: board.fen,
                                     sideToMove: board.sideToMove,
                                     lastMove: lastMove,
                                     lastSAN: sanHistory.last,
                                     moveKind: kind,
-                                    ply: sanHistory.count,
+                                    ply: ply,
                                     sanHistory: sanHistory,
-                                    isGameOver: status.isFinished,
-                                    statusText: LivePositionSync.statusText(status: status,
-                                                                            sideToMove: board.sideToMove),
-                                    reason: reason)
+                                    isGameOver: isOver,
+                                    statusText: isOver && !status.isFinished
+                                        ? "Partie beendet"
+                                        : LivePositionSync.statusText(status: status,
+                                                                      sideToMove: board.sideToMove),
+                                    reason: reason,
+                                    version: version,
+                                    source: source,
+                                    eventKind: event)
         changeCount += 1
+        stats.accepted += 1
+        events.append(PositionEvent(version: version,
+                                    kind: event,
+                                    ply: ply,
+                                    sideToMove: board.sideToMove,
+                                    san: sanHistory.last,
+                                    source: source))
+        if events.count > 32 { events.removeFirst(events.count - 32) }
         return true
+    }
+
+    // MARK: - Classification
+
+    static func eventKind(previous: PositionSnapshot?,
+                          board: Board,
+                          ply: Int,
+                          reason: PositionSnapshot.ChangeReason,
+                          userColor: PieceColor?,
+                          explicit: SyncEventKind?) -> SyncEventKind {
+        if let explicit = explicit { return explicit }
+
+        switch reason {
+        case .reset: return .reset
+        case .undo: return .undo
+        case .jump: return .jump
+        case .edit: return .edit
+        case .imported: return .positionLoaded
+        case .detected, .move: break
+        }
+
+        if let previous = previous, ply == 0, previous.ply > 0 { return .newGame }
+        if let previous = previous, ply < previous.ply { return .positionLoaded }
+        if board.isGameOver { return .gameOver }
+
+        guard let previous = previous else { return .newGame }
+        let mover = board.sideToMove.opponent
+        if let user = userColor, mover != user { return .opponentMove }
+        _ = previous
+        return mover == .white ? .whiteMove : .blackMove
     }
 
     /// Classifies a played move, including castling, en passant and promotion.

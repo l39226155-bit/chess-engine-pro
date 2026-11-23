@@ -33,6 +33,17 @@ final class ChessComBrowser: NSObject, ObservableObject {
     @Published private(set) var hasSession: Bool = false
     @Published private(set) var lastPortalMessage: String?
 
+    // Live position detection
+    @Published private(set) var detectionCount: Int = 0
+    @Published private(set) var lastDetectionDate: Date?
+    @Published private(set) var livePly: Int = 0
+    @Published private(set) var liveStatusText: String = ""
+
+    /// Called for every new snapshot the page posts (already de-duplicated in
+    /// JavaScript). The payload is not yet verified - that happens in the
+    /// detector and the synchroniser before anything reaches the engine.
+    var onPositionPayload: (@MainActor (ChessComPositionPayload) -> Void)?
+
     let webView: WKWebView
 
     private var observations: [NSKeyValueObservation] = []
@@ -53,10 +64,18 @@ final class ChessComBrowser: NSObject, ObservableObject {
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
+        // Read-only probe for the rendered board, injected before the page runs.
+        configuration.userContentController.addUserScript(
+            WKUserScript(source: ChessComPositionScript.source,
+                         injectionTime: .atDocumentEnd,
+                         forMainFrameOnly: true)
+        )
 
         webView = WKWebView(frame: .zero, configuration: configuration)
 
         super.init()
+
+        configuration.userContentController.add(self, name: ChessComPositionScript.handlerName)
 
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -76,6 +95,16 @@ final class ChessComBrowser: NSObject, ObservableObject {
         if webView.url == nil {
             load(Self.homeURL)
         }
+    }
+
+    /// Asks the injected probe for a snapshot without navigating or reloading.
+    /// Used after the app returns from the background, where the page may have
+    /// moved on while the app was suspended.
+    func requestLiveSnapshot() {
+        guard hasStarted, webView.url != nil else { return }
+        webView.evaluateJavaScript(
+            "window.__cepLive && window.__cepLive.snapshot ? (window.__cepLive.snapshot(), true) : false"
+        ) { _, _ in }
     }
 
     // MARK: - KVO
@@ -168,6 +197,22 @@ final class ChessComBrowser: NSObject, ObservableObject {
             }
             Task { @MainActor in self?.hasSession = hasSession }
         }
+    }
+
+    // MARK: - Live position detection
+
+    fileprivate func handlePositionPayload(_ payload: ChessComPositionPayload) {
+        detectionCount += 1
+        lastDetectionDate = Date()
+        livePly = payload.moves.count
+        if payload.isGameOver {
+            liveStatusText = "Partie beendet"
+        } else if let last = payload.moves.last {
+            liveStatusText = "Letzter Zug \(last)"
+        } else {
+            liveStatusText = "Stellung erkannt"
+        }
+        onPositionPayload?(payload)
     }
 
     // MARK: - JavaScript dialogs
@@ -285,6 +330,24 @@ extension ChessComBrowser: WKUIDelegate {
                         UIAlertAction(title: "Abbrechen", style: .cancel) { _ in completionHandler(nil) },
                         UIAlertAction(title: "OK", style: .default) { _ in completionHandler(defaultText) }
                      ])
+    }
+}
+
+// MARK: - WKScriptMessageHandler
+
+extension ChessComBrowser: WKScriptMessageHandler {
+
+    nonisolated func userContentController(_ userContentController: WKUserContentController,
+                                           didReceive message: WKScriptMessage) {
+        guard message.name == ChessComPositionScript.handlerName else { return }
+        guard let body = message.body as? [String: Any],
+              let data = try? JSONSerialization.data(withJSONObject: body),
+              let payload = try? JSONDecoder().decode(ChessComPositionPayload.self, from: data) else {
+            return
+        }
+        Task { @MainActor in
+            self.handlePositionPayload(payload)
+        }
     }
 }
 

@@ -216,6 +216,70 @@ Deduplizierung, Zugarten, Matt-Erkennung und alle Ablehnungsgründe ab.
 
 ---
 
-## 7. Version
+## 7. Live-Erkennung der Chess.com-Stellung
+
+Die App liest die Stellung einer geöffneten Chess.com-Partie selbst aus – ohne
+manuelles Abfragen, ohne Reload der Seite und ohne private Schnittstelle.
+
+**Datenquelle.** `ChessComPositionScript.source` wird als `WKUserScript`
+(`.atDocumentEnd`, Main Frame) in die persistente WebView injiziert und liest
+ausschließlich, was die Seite ohnehin anzeigt: die Figurenelemente samt
+`square-NN`-Klasse (mit Rechteck-Fallback), die sichtbare Zugliste (`.node`),
+den Zugindikator der Uhren, den Partieende-Hinweis und die Partie-ID. Es wird
+nichts geschrieben, kein Cookie gelesen und keine Anfrage an Chess.com
+gestellt. Ein `MutationObserver` (140 ms entprellt) plus langsames Polling
+(1,2 s) melden nur dann einen neuen Stand, wenn sich der Fingerabdruck aus
+Stellung, Zugrecht, Zugliste und Status geändert hat.
+
+**Verifikation.** `ChessComPositionDetector` prüft jeden Stand auf zwei Wegen:
+
+1. *Zugliste verifiziert* – die sichtbaren SAN-Züge werden mit der eigenen
+   Regel-Engine nachgespielt. Stimmt das Ergebnis mit dem erkannten Brett
+   überein, sind FEN, Rochaderechte, En-passant-Feld, Halbzug- und Vollzugzähler
+   exakt.
+2. *Brett erkannt* (Fallback) – die 64 Felder gelten als Wahrheit, das
+   Zugrecht kommt von der Uhr, Rochaderechte werden aus der Stellung von König
+   und Türmen abgeleitet. Diese Herkunft wird in der Oberfläche benannt.
+
+Erst danach greift `LivePositionSync.publish(...)`: FEN-Rundreise, Königszahl,
+Bauern auf der Grundlinie, Gegner-im-Schach und En-passant-Konsistenz müssen
+bestehen, sonst wird die Stellung verworfen und im UI mit Grund angezeigt.
+
+**Ereignisse und Versionen.** Jede übernommene Stellung erhält eine streng
+monotone Versionsnummer (Basis der Seite, bei einem Reload auf die interne
+Version neu aufgesetzt). Daraus entstehen die Ereignisse *Neue Partie*, *Weiß
+am Zug*, *Schwarz am Zug*, *Gegner hat gezogen*, *Partie beendet*,
+*Zurückgesetzt* und *Stellung geladen*. Veraltete Messungen (Version ≤ aktuell)
+werden verworfen, doppelte Stellungen (gleiche FEN und gleicher Ply) gezählt und
+übersprungen – sichtbar als `übernommen · doppelt · veraltet · verworfen`.
+
+**Engine.** Eine neue gültige Stellung wird sofort analysiert: die laufende
+Suche wird über den Generationen-Zähler beendet, das Engine-Objekt bleibt
+bestehen (`position fen …`, MultiPV aus den Einstellungen). Während der
+Chess.com-Tab sichtbar ist, ist die Tiefe auf 12 begrenzt (`liveDepthCap`),
+damit die Partie flüssig bleibt; im Stockfish-Tab gilt die volle Tiefe.
+
+**Oberfläche.** Der Stockfish-Tab zeigt Quelle, Ereignis, Versionsnummer,
+Ply/Zugrecht, die zuletzt erkannten Züge, den Fortschrittsbalken und die
+FEN. Darunter steht die *Natural Move Selection* mit bestem Zug, guter
+Alternative und interessanter Variante – jeweils mit Bewertung, Qualität und
+einer aus den Zugeigenschaften abgeleiteten Begründung (`StrategicExplainer`).
+Die Pfeile der Varianten werden animiert auf das Brett gezeichnet.
+
+**Grenze.** Die Erkennung hängt an der gerenderten DOM-Struktur von Chess.com.
+Ändert Chess.com seine Markup-Klassen oder rendert ein Brett ausschließlich auf
+Canvas, findet die Sonde keine Stellung; die App zeigt dann „noch keine gültige
+Stellung“ statt einer geratenen FEN. Geprüft ist die Kette durch Unit-Tests
+(Payload-Decoding, FEN-Aufbau, Zuglisten-Verifikation, Fallback, Versionen,
+Dedupe, Ereignisse); ein Test gegen die echte Chess.com-Seite ist in dieser
+Umgebung ohne iPhone nicht möglich.
+
+**Tests:** `ChessEngineProTests/ChessComDetectionTests.swift`,
+`LiveSyncVersionTests.swift`, `StrategicExplainerTests.swift` sowie
+`LiveSyncTests.swift`.
+
+---
+
+## 8. Version
 
 `2.0.0` (Build 3) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).

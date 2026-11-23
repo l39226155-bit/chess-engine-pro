@@ -51,7 +51,14 @@ final class AppEnvironment: ObservableObject {
     /// Central engine owner (single instance, lifecycle aware).
     let engineManager: EngineManager
 
-    @Published var selectedTab: AppTab = .home
+    @Published var selectedTab: AppTab = .home {
+        didSet {
+            guard oldValue != selectedTab else { return }
+            // Live analysis runs at a lower ceiling while the user is playing on
+            // Chess.com; the analysis screen always gets the full depth.
+            analysis.liveDepthCap = selectedTab == .chessCom ? 12 : nil
+        }
+    }
     @Published var toastMessage: String?
 
     private var toastTask: Task<Void, Never>?
@@ -75,6 +82,16 @@ final class AppEnvironment: ObservableObject {
         engineManager.resumeHandler = { [weak analysis] in
             analysis?.resumeAfterBackground()
         }
+
+        analysis.liveDepthCap = 12
+        // Every payload the page posts is verified before it reaches the model:
+        // the detector rebuilds the position from the board and the move list,
+        // the synchroniser then rejects stale, duplicate and invalid updates.
+        browser.onPositionPayload = { [weak analysis] payload in
+            guard let analysis = analysis else { return }
+            guard let detected = ChessComPositionDetector.detect(payload) else { return }
+            analysis.ingest(detected, sequence: payload.sequence, session: payload.session)
+        }
     }
 
     /// iOS lifecycle: stop heavy work in the background, continue on return.
@@ -84,7 +101,11 @@ final class AppEnvironment: ObservableObject {
             engineManager.suspend()
         case .active:
             engineManager.resume()
-            if selectedTab == .chessCom { browser.refreshSessionState() }
+            if selectedTab == .chessCom {
+                browser.refreshSessionState()
+                // The page may have changed while the app was suspended.
+                browser.requestLiveSnapshot()
+            }
         default:
             break
         }

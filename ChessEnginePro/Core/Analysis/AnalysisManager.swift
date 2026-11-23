@@ -21,8 +21,12 @@ struct CandidateMove: Identifiable, Hashable, Sendable {
     var styleFit: Double
     var tags: [String]
     var depth: Int
+    /// Plain German explanation derived from the features of this line.
+    var explanation: String
 
     var id: Int { rank }
+
+    var roleTitle: String { StrategicExplainer.roleTitle(rank: rank) }
 
     var arrowKind: BoardArrow.Kind {
         NaturalMoveSelector.arrowKind(rank: rank, quality: quality)
@@ -65,6 +69,16 @@ final class AnalysisManager: ObservableObject {
     @Published private(set) var analysisProgress: Double = 0
     @Published private(set) var targetDepth: Int = 0
 
+    // Detection pipeline state (Chess.com live positions).
+    @Published private(set) var liveEvent: PositionEvent?
+    @Published private(set) var liveSource: PositionSource = .local
+    @Published private(set) var syncStats = SyncStatistics()
+    @Published private(set) var liveBoardID: String?
+    @Published private(set) var lastDetectedMoves: [String] = []
+    @Published private(set) var detectionCount: Int = 0
+    @Published private(set) var lastDetectionDate: Date?
+    @Published private(set) var lastDetectionOrigin: DetectionOrigin?
+
     // Preview (stepping through a variation)
     @Published private(set) var previewCandidate: CandidateMove?
     @Published private(set) var previewBoards: [Board] = []
@@ -81,6 +95,13 @@ final class AnalysisManager: ObservableObject {
     private var analysisTask: Task<Void, Never>?
     private var generation = 0
     private var resumePending = false
+
+    /// Depth ceiling used while the app is not showing the analysis screen.
+    /// Keeps live analysis responsive instead of maxing out the CPU during play.
+    var liveDepthCap: Int?
+    private var liveSession: String?
+    private var externalBase = 0
+    private var lastPayloadSequence = 0
 
     init(settings: SettingsStore, engines: EngineManager) {
         self.settings = settings
@@ -160,7 +181,7 @@ final class AnalysisManager: ObservableObject {
 
     // MARK: - Analysis
 
-    func analyze(debounce: Bool = false) {
+    func analyze(debounce: Bool = false, depthCap: Int? = nil) {
         analysisTask?.cancel()
         analysisTask = nil
         generation += 1
@@ -185,7 +206,13 @@ final class AnalysisManager: ObservableObject {
         syncLivePosition(reason: .edit)
 
         let engine = activeEngine
-        let limits = settings.settings.limits
+        let base = settings.settings.limits
+        let limits: EngineLimits
+        if let cap = depthCap, !settings.settings.useTimeLimit {
+            limits = EngineLimits.depth(min(base.depth, max(1, cap)), multiPV: base.multiPV)
+        } else {
+            limits = base
+        }
         engineName = engine.displayName
         targetDepth = settings.settings.useTimeLimit ? 0 : max(1, limits.depth)
         analysisProgress = 0
@@ -249,6 +276,98 @@ final class AnalysisManager: ObservableObject {
         liveSnapshot = liveSync.snapshot
         liveValidation = liveSync.validation
         liveChangeCount = liveSync.changeCount
+        syncStats = liveSync.stats
+        liveSource = liveSync.snapshot?.source ?? .local
+        liveEvent = liveSync.events.last
+    }
+
+    // MARK: - Chess.com live detection
+
+    /// Receives a verified position detected on the Chess.com page.
+    ///
+    /// The synchroniser drops duplicated, stale and invalid updates. A new valid
+    /// position becomes the analysis board, is mirrored into the move list and
+    /// restarts Stockfish immediately - the running search is cancelled first,
+    /// the engine process itself is reused.
+    func ingest(_ detected: DetectedPosition,
+                sequence: Int? = nil,
+                session: String? = nil) {
+        detectionCount += 1
+        lastDetectionDate = Date()
+        lastDetectionOrigin = detected.origin
+
+        let sessionChanged = session != nil && session != liveSession
+        if let session = session { liveSession = session }
+
+        var incomingSequence: Int?
+        if let sequence = sequence {
+            // The page restarts its counter after a reload. Rebase it onto the
+            // synchroniser's version so the sequence stays strictly monotonic
+            // while late payloads from the old page are still rejected.
+            if sessionChanged || sequence < lastPayloadSequence {
+                externalBase = liveSync.version
+                lastPayloadSequence = 0
+            }
+            lastPayloadSequence = max(lastPayloadSequence, sequence)
+            incomingSequence = externalBase + sequence
+        }
+
+        let boardChanged = liveBoardID != nil && liveBoardID != detected.boardID
+        let explicit: SyncEventKind? = boardChanged
+            ? (detected.moveList.isEmpty ? .newGame : .positionLoaded)
+            : nil
+        let previousFen = liveSnapshot?.fen
+
+        _ = liveSync.publish(board: detected.board,
+                             lastMove: detected.lastMove,
+                             sanHistory: detected.moveList,
+                             reason: .detected,
+                             source: .chessCom,
+                             externalVersion: incomingSequence,
+                             explicitEvent: explicit,
+                             userColor: detected.userColor,
+                             gameOverOverride: detected.isGameOver)
+
+        liveSnapshot = liveSync.snapshot
+        liveValidation = liveSync.validation
+        liveChangeCount = liveSync.changeCount
+        syncStats = liveSync.stats
+        liveEvent = liveSync.events.last
+        liveSource = .chessCom
+
+        guard liveSync.validation.isValid,
+              liveSource == .chessCom,
+              liveSync.snapshot?.fen != previousFen else { return }
+
+        clearPreview()
+        // Rebuild the local history from the verified move list so undo, jump
+        // and the move list chips keep working on a mirrored game.
+        var rebuilt: [HistoryEntry] = []
+        var walker = Board()
+        for uci in detected.uciMoves {
+            guard let parsed = Move(uci: uci), walker.isLegal(parsed) else { break }
+            let san = walker.san(for: parsed)
+            rebuilt.append(HistoryEntry(board: walker, move: parsed, san: san))
+            walker.apply(parsed)
+        }
+        history = rebuilt
+        board = detected.board
+        lastMove = detected.lastMove
+        moveLog = detected.moveList
+        sessionMoves = Array(zip(detected.moveList, detected.uciMoves)).map {
+            PGNMove(san: $0.0, uci: $0.1)
+        }
+        sessionStartFEN = Board.startFEN
+        liveBoardID = detected.boardID
+        lastDetectedMoves = Array(detected.moveList.suffix(6))
+        statusMessage = detected.isGameOver ? "Partie auf Chess.com beendet." : nil
+
+        if settings.settings.engineEnabled && settings.settings.autoAnalyze {
+            analyze(debounce: true, depthCap: liveDepthCap)
+        } else {
+            candidates = []
+            isAnalyzing = false
+        }
     }
 
     private func consume(update: EngineUpdate, position: Board, generation: Int) {
@@ -300,7 +419,11 @@ final class AnalysisManager: ObservableObject {
                                         features: features,
                                         styleFit: fit,
                                         tags: NaturalMoveSelector.tags(for: features, quality: quality),
-                                        depth: line.depth))
+                                        depth: line.depth,
+                                        explanation: StrategicExplainer.explain(features: features,
+                                                                               quality: quality,
+                                                                               score: line.score,
+                                                                               best: bestScore)))
         }
         return result
     }
