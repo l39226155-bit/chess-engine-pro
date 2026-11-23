@@ -365,13 +365,12 @@ final class LivePositionSync {
         }
 
         if let previous = previous, ply == 0, previous.ply > 0 { return .newGame }
+        if previous == nil, ply == 0 { return .newGame }
         if let previous = previous, ply < previous.ply { return .positionLoaded }
         if board.isGameOver { return .gameOver }
 
-        guard let previous = previous else { return .newGame }
         let mover = board.sideToMove.opponent
         if let user = userColor, mover != user { return .opponentMove }
-        _ = previous
         return mover == .white ? .whiteMove : .blackMove
     }
 

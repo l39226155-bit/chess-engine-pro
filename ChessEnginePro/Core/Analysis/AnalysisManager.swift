@@ -164,7 +164,7 @@ final class AnalysisManager: ObservableObject {
     /// Arrows currently drawn on the board.
     var arrows: [BoardArrow] {
         guard showsArrows else { return [] }
-        if let candidate = previewCandidate {
+        if previewCandidate != nil {
             guard previewMoves.indices.contains(previewPly) else { return [] }
             let move = previewMoves[previewPly]
             return [BoardArrow(from: move.from, to: move.to, kind: .best)]

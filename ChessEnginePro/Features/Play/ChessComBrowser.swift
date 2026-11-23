@@ -339,13 +339,14 @@ extension ChessComBrowser: WKScriptMessageHandler {
 
     nonisolated func userContentController(_ userContentController: WKUserContentController,
                                            didReceive message: WKScriptMessage) {
-        guard message.name == ChessComPositionScript.handlerName else { return }
-        guard let body = message.body as? [String: Any],
-              let data = try? JSONSerialization.data(withJSONObject: body),
-              let payload = try? JSONDecoder().decode(ChessComPositionPayload.self, from: data) else {
-            return
-        }
-        Task { @MainActor in
+        // WKScriptMessageHandler delivers its messages on the main thread.
+        MainActor.assumeIsolated {
+            guard message.name == ChessComPositionScript.handlerName else { return }
+            guard let body = message.body as? [String: Any],
+                  let data = try? JSONSerialization.data(withJSONObject: body),
+                  let payload = try? JSONDecoder().decode(ChessComPositionPayload.self, from: data) else {
+                return
+            }
             self.handlePositionPayload(payload)
         }
     }
