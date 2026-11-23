@@ -100,7 +100,8 @@ final class AnalysisManagerLiveTests: XCTestCase {
 
         XCTAssertNil(manager.engineBlockedReason)
         XCTAssertEqual(manager.liveContextLabel, "Partie beendet")
-        XCTAssertTrue(await waitForAnalysis(manager))
+        let analysed = await waitForAnalysis(manager)
+        XCTAssertTrue(analysed, "Die Engine lief nicht für die beendete Partie")
         manager.stop()
     }
 
@@ -162,7 +163,8 @@ final class AnalysisManagerLiveTests: XCTestCase {
                        sequence: 2,
                        session: "session-1")
 
-        XCTAssertTrue(await waitForAnalysis(manager))
+        let analysed = await waitForAnalysis(manager)
+        XCTAssertTrue(analysed, "Die Engine lief nicht für die letzte Stellung")
         XCTAssertEqual(manager.board.fen, second.fen)
         XCTAssertEqual(manager.liveSync.snapshot?.ply, 2)
         for candidate in manager.candidates {
