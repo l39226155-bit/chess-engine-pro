@@ -201,10 +201,10 @@ final class ChessComDetectionTests: XCTestCase {
 
     func testAdjacentKingsAreRejected() throws {
         let detected = try XCTUnwrap(ChessComPositionDetector.detect(
-            payload(placement: "8/8/8/8/8/8/8/KK6", side: "w")
+            payload(placement: "8/8/8/8/8/8/8/Kk6", side: "w")
         ))
         XCTAssertFalse(detected.validation.isValid)
-        XCTAssertTrue(detected.validation.issues.contains(.kingsAdjacent))
+        XCTAssertTrue(detected.validation.issues.contains(.kingsAdjacent), detected.validation.summary)
     }
 
     // MARK: - Decoding
