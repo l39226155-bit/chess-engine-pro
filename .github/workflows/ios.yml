@@ -7,6 +7,19 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "macOS runner label"
+        required: false
+        default: macos-15
+      simulator:
+        description: "Simulator name for the unit tests"
+        required: false
+        default: iPhone 16
+      sim_arch:
+        description: "Simulator architecture for Stockfish (arm64 or x86_64)"
+        required: false
+        default: arm64
 
 permissions:
   contents: write
@@ -19,8 +32,10 @@ env:
 jobs:
   build:
     name: Build, test and package IPA
-    runs-on: macos-15
-    timeout-minutes: 120
+    runs-on: ${{ inputs.runner || 'macos-15' }}
+    timeout-minutes: 240
+    env:
+      SIM_ARCHS: ${{ inputs.sim_arch || 'arm64' }}
 
     steps:
       - name: Checkout
@@ -60,7 +75,7 @@ jobs:
           xcodebuild test \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,name=${{ inputs.simulator || 'iPhone 16' }},OS=latest' \
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -115,7 +130,7 @@ jobs:
   release:
     name: Publish GitHub release
     needs: build
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
