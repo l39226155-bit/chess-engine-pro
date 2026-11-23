@@ -125,11 +125,21 @@ build_slice() {
         sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
     fi
 
-    log "Kompiliere Stockfish für $platform ($arch)"
+    # Stockfish picks its SIMD paths from ARCH. An x86_64 simulator slice must
+    # not be built with the ARM kernel, otherwise NEON intrinsics are emitted
+    # for an x86 target and the compile fails.
+    local sf_arch="armv8"
+    local sf_kernel="IOS"
+    if [[ "$arch" == "x86_64" ]]; then
+        sf_arch="x86-64-sse41-popcnt"
+        sf_kernel="OSX"
+    fi
+
+    log "Kompiliere Stockfish für $platform ($arch, ARCH=$sf_arch)"
     make -C "$SRC" -j"$(sysctl -n hw.ncpu)" analyze \
-        ARCH=armv8 \
+        ARCH="$sf_arch" \
+        KERNEL="$sf_kernel" \
         COMP=clang \
-        KERNEL=IOS \
         optimize=no \
         EXTRACXXFLAGS="-O3 -funroll-loops -DNDEBUG -target $triple -isysroot $sdk -fPIC"
 

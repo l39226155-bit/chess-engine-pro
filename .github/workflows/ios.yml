@@ -55,7 +55,7 @@ jobs:
           path: |
             Vendor/Stockfish
             Build/Stockfish
-          key: stockfish-${{ env.STOCKFISH_VERSION }}-${{ runner.arch }}-v4
+          key: stockfish-${{ env.STOCKFISH_VERSION }}-${{ runner.arch }}-v5
 
       - name: Build Stockfish (device + simulator)
         run: |
