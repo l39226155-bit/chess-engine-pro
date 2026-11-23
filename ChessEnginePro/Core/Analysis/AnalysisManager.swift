@@ -51,7 +51,13 @@ final class AnalysisManager: ObservableObject {
     @Published private(set) var depth: Int = 0
     @Published private(set) var seldepth: Int = 0
     @Published private(set) var nodes: UInt64 = 0
+    /// Search time reported by the engine for the current position. Together
+    /// with `nodes` it yields the real nodes per second shown in the panel.
+    @Published private(set) var lastUpdateTimeMs: Int = 0
     @Published private(set) var isAnalyzing: Bool = false
+    /// False while the Chess.com page is a running rated online game, where
+    /// engine suggestions must stay hidden.
+    @Published var liveSuggestionsAllowed = true
     @Published private(set) var engineName: String = ""
     @Published private(set) var statusMessage: String?
     @Published private(set) var history: [HistoryEntry] = []
@@ -100,6 +106,9 @@ final class AnalysisManager: ObservableObject {
     private var liveSession: String?
     private var externalBase = 0
     private var lastPayloadSequence = 0
+    /// Set after the user returns from a manual analysis board: the page's
+    /// counter is rebased once so its next snapshot is accepted.
+    private var forcesSequenceRebase = false
 
     init(settings: SettingsStore, engines: EngineManager) {
         self.settings = settings
@@ -112,6 +121,13 @@ final class AnalysisManager: ObservableObject {
     var activeEngine: ChessEngine { engines.engine }
 
     var usesStockfish: Bool { engines.usesStockfish }
+
+    /// Real throughput of the current search. Zero until the engine reports.
+    var nodesPerSecond: Int {
+        guard lastUpdateTimeMs > 0, nodes > 0 else { return 0 }
+        let clamped = min(nodes, UInt64(Int.max / 1000))
+        return Int(clamped) * 1000 / lastUpdateTimeMs
+    }
 
     var displayBoard: Board {
         if previewCandidate != nil, previewBoards.indices.contains(previewPly) {
@@ -221,6 +237,7 @@ final class AnalysisManager: ObservableObject {
         depth = 0
         seldepth = 0
         nodes = 0
+        lastUpdateTimeMs = 0
 
         analysisTask = Task { [weak self] in
             guard let self = self else { return }
@@ -301,9 +318,10 @@ final class AnalysisManager: ObservableObject {
             // The page restarts its counter after a reload. Rebase it onto the
             // synchroniser's version so the sequence stays strictly monotonic
             // while late payloads from the old page are still rejected.
-            if sessionChanged || (session == nil && sequence < lastPayloadSequence) {
+            if sessionChanged || forcesSequenceRebase || (session == nil && sequence < lastPayloadSequence) {
                 externalBase = liveSync.version
                 lastPayloadSequence = 0
+                forcesSequenceRebase = false
             }
             lastPayloadSequence = max(lastPayloadSequence, sequence)
             incomingSequence = externalBase + sequence
@@ -342,6 +360,7 @@ final class AnalysisManager: ObservableObject {
         depth = 0
         seldepth = 0
         nodes = 0
+        lastUpdateTimeMs = 0
         analysisProgress = 0
         // Rebuild the local history from the verified move list so jump and the
         // move list chips keep working on a mirrored game.
@@ -379,11 +398,46 @@ final class AnalysisManager: ObservableObject {
         liveBoardID = nil
     }
 
+    /// Stops calculating and clears every engine result for the current live
+    /// position. Used when the Chess.com page enters a mode where suggestions
+    /// are not allowed; the board is not touched.
+    func suspendLiveAnalysis() {
+        stop()
+        clearPreview()
+        candidates = []
+        evaluation = .zero
+        depth = 0
+        seldepth = 0
+        nodes = 0
+        lastUpdateTimeMs = 0
+        analysisProgress = 0
+        statusMessage = nil
+    }
+
+    /// The manual analysis board is closed: the next snapshot of the page is
+    /// treated as a new position, even if its counter restarted at zero.
+    func resumeFromChessCom() {
+        liveBoardID = nil
+        lastPayloadSequence = 0
+        forcesSequenceRebase = true
+        clearPreview()
+        candidates = []
+        evaluation = .zero
+        depth = 0
+        seldepth = 0
+        nodes = 0
+        lastUpdateTimeMs = 0
+        analysisProgress = 0
+        statusMessage = nil
+        isAnalyzing = false
+    }
+
     private func consume(update: EngineUpdate, position: Board, generation: Int) {
         guard generation == self.generation else { return }
         depth = max(depth, update.depth)
         seldepth = max(seldepth, update.seldepth)
         nodes = max(nodes, update.nodes)
+        lastUpdateTimeMs = max(lastUpdateTimeMs, update.timeMs)
 
         if targetDepth > 0 {
             analysisProgress = min(1, Double(update.depth) / Double(targetDepth))

@@ -236,9 +236,12 @@ enum ChessComPositionScript {
       }
 
       window.__cepLive = {
-        version: 4,
+        version: 5,
         session: session,
         snapshot: snapshot,
+        // Posts the current board even when the fingerprint did not change.
+        // Used after the app returns from another screen or the background.
+        force: function () { lastFingerprint = ""; snapshot(); },
         fingerprint: function () { return lastFingerprint; }
       };
 

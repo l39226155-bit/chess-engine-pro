@@ -30,6 +30,12 @@ final class ChessComBrowser: NSObject, ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var hasSession: Bool = false
     @Published private(set) var lastPortalMessage: String?
+    /// What the open page is used for. Drives the live analysis gate.
+    @Published private(set) var pageMode: ChessComPageMode = .home
+
+    /// Engine suggestions are only allowed in analysis, training and games
+    /// against the computer.
+    var allowsLiveSuggestions: Bool { pageMode.allowsEngineSuggestions }
 
     // Live position detection
     @Published private(set) var detectionCount: Int = 0
@@ -110,11 +116,13 @@ final class ChessComBrowser: NSObject, ObservableObject {
     /// Asks the injected probe for a snapshot without navigating or reloading.
     /// Used after the app returns from the background, where the page may have
     /// moved on while the app was suspended.
-    func requestLiveSnapshot() {
+    func requestLiveSnapshot(force: Bool = false) {
         guard hasStarted, webView.url != nil else { return }
-        webView.evaluateJavaScript(
-            "window.__cepLive && window.__cepLive.snapshot ? (window.__cepLive.snapshot(), true) : false"
-        ) { _, _ in }
+        pageMode = ChessComPageMode.classify(webView.url)
+        let call = force
+            ? "window.__cepLive && window.__cepLive.force ? (window.__cepLive.force(), true) : false"
+            : "window.__cepLive && window.__cepLive.snapshot ? (window.__cepLive.snapshot(), true) : false"
+        webView.evaluateJavaScript(call) { _, _ in }
     }
 
     // MARK: - KVO
@@ -130,7 +138,11 @@ final class ChessComBrowser: NSObject, ObservableObject {
         })
         observations.append(webView.observe(\.url, options: [.new]) { [weak self] view, _ in
             let url = view.url
-            Task { @MainActor in self?.currentURL = url }
+            let mode = ChessComPageMode.classify(url)
+            Task { @MainActor in
+                self?.currentURL = url
+                if self?.pageMode != mode { self?.pageMode = mode }
+            }
         })
         observations.append(webView.observe(\.title, options: [.new]) { [weak self] view, _ in
             let title = view.title
@@ -232,6 +244,7 @@ extension ChessComBrowser: WKNavigationDelegate {
         isLoading = false
         progress = 1
         currentURL = webView.url
+        pageMode = ChessComPageMode.classify(webView.url)
         if let title = webView.title, !title.isEmpty { pageTitle = title }
         refreshSessionState()
     }

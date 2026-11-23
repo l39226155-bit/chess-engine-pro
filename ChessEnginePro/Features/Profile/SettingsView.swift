@@ -9,7 +9,6 @@ import SwiftUI
 
 struct SettingsView: View {
 
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var environment: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var analysis: AnalysisManager
@@ -41,13 +40,6 @@ struct SettingsView: View {
             .background(Theme.background)
             .navigationTitle("Einstellungen")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Fertig") { dismiss() }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                }
-            }
             .alert("Alle Analysen löschen?", isPresented: $showDeleteConfirm) {
                 Button("Löschen", role: .destructive) {
                     environment.store.deleteAll()
@@ -110,6 +102,12 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(SecondaryButtonStyle(fullWidth: true))
+            DividerLine()
+            Text("Analyse-Vorschläge erscheinen im Panel unter dem Chess.com-Brett – in Analysebrettern, im Training, bei Puzzles und gegen den Computer. In laufenden gewerteten Online-Partien bleibt die Engine deaktiviert.")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
         }
         .premiumCard()
     }
@@ -270,7 +268,6 @@ struct SettingsView: View {
             .padding(.vertical, 6)
             DividerLine()
             Button {
-                dismiss()
                 environment.selectedTab = .chessCom
             } label: {
                 Label("Chess.com öffnen", systemImage: "crown.fill")

@@ -10,6 +10,9 @@ import UIKit
 
 struct AnalysisView: View {
 
+    /// Set when the view is presented as the app's analysis board.
+    var onClose: (() -> Void)? = nil
+
     @EnvironmentObject private var environment: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var analysis: AnalysisManager
@@ -40,6 +43,9 @@ struct AnalysisView: View {
             .padding(.bottom, 26)
         }
         .background(Theme.background)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if onClose != nil { closeBar }
+        }
         .onChange(of: settings.settings) { _, newValue in
             analysis.apply(style: newValue.style)
             analysis.analyze(debounce: true)
@@ -61,6 +67,30 @@ struct AnalysisView: View {
             environment.showToast("Partie geladen")
         } onError: { message in
             environment.showToast(message)
+        }
+    }
+
+    // MARK: - Close bar
+
+    private var closeBar: some View {
+        HStack(spacing: 8) {
+            Text("Analysebrett")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.secondaryText)
+            Spacer()
+            Button {
+                onClose?()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(IconButtonStyle())
+            .accessibilityLabel("Analysebrett schließen")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(Theme.secondaryBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.divider).frame(height: 1)
         }
     }
 

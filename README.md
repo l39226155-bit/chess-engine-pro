@@ -2,7 +2,8 @@
 
 Native iOS-App (Swift · SwiftUI · WKWebView) mit eingebetteter **Stockfish**-Engine,
 einem Premium-Analysebrett mit MultiPV-Pfeilen, fünf Spielstil-Profilen, einem
-Trainingssystem, PGN-Import/-Export und einer integrierten **Chess.com**-Ansicht.
+Trainingssystem, PGN-Import/-Export und einer integrierten **Chess.com**-Ansicht,
+unter der die Engine-Analyse direkt mitläuft.
 
 > App-Name: CHESS ENGINE PRO · Bundle-ID: `com.chessenginepro.app` · Minimum: iOS 17.0 · arm64
 
@@ -12,7 +13,8 @@ Trainingssystem, PGN-Import/-Export und einer integrierten **Chess.com**-Ansicht
 
 | Bereich | Umsetzung |
 |---|---|
-| **Chess.com** | WKWebView mit persistenter Sitzung (`WKWebsiteDataStore.default()`), native Browser-Steuerung, eigene Login-Schaltfläche, Sitzung löschen. Anmeldung ausschließlich über die offizielle Chess.com-Seite. |
+| **Chess.com** | WKWebView mit persistenter Sitzung (`WKWebsiteDataStore.default()`), kompakter Kopf (Verbindung, Login, Synchronisation), Kurzmenü für Start/Online/Puzzles/Profil/Login, Sitzung löschen. Anmeldung ausschließlich über die offizielle Chess.com-Seite. |
+| **Ein Bildschirm** | Chess.com und Stockfish sind zusammengeführt: unter der WebView sitzt ein kompaktes Analysepanel (Bewertung, bester Zug, Varianten, Tiefe, n/s, Fortschritt) mit aufklappbarem Detailbereich (FEN, Validierung, Version, Synchronzähler). Eine Engine-Instanz, ein `AnalysisManager`. |
 | **Stockfish** | Offizielle Stockfish-Quellen (17.1) werden im Build zu einer statischen iOS-Bibliothek kompiliert und **im App-Prozess** über das UCI-Protokoll angesteuert (eigener `std::cin`/`std::cout`-Transport, siehe `StockfishBridge.mm`). |
 | **Fallback** | Ist die Bibliothek nicht eingebunden, übernimmt eine vollständige Swift-Engine (Alpha-Beta + Quiescence + MultiPV), damit Analyse, Training und Partien immer funktionieren. |
 | **Analysebrett** | Tap-to-move, legale Zugvorschläge, letzter Zug, Schach-Markierung, animierte Figuren, 5 Brettdesigns, 3 Figurenstile, Koordinaten, Brett drehen. |
@@ -33,12 +35,14 @@ ChessEnginePro/
 │   ├── Chess/           Types, Board (Regeln, FEN), Board+SAN
 │   ├── Engine/          EngineTypes, StockfishEngine (UCI), FallbackEngine,
 │   │                    Bridge/ (C-Header, ObjC++-Transport, Stub)
-│   ├── Analysis/        AnalysisManager, NaturalMoveSelection, MoveQuality, GameReview
+│   ├── Analysis/        AnalysisManager, LivePositionSync, NaturalMoveSelection,
+│   │                    MoveQuality, GameReview
+│   ├── Live/            ChessComBrowser-Sonde, Positionsdetektor, LiveAnalysisPolicy
 │   ├── PGN/             PGN-Parser/-Export, Datei-Import
 │   └── Storage/         SettingsStore, AnalysisStore (SQLite)
 ├── Design/              Theme, Components, ChessBoardView + ArrowRenderer
 ├── Features/
-│   ├── Home/ Play/ Analysis/ Training/ Review/ Profile/
+│   ├── Home/ Play/ (inkl. Analysepanel) Analysis/ Training/ Review/ Profile/
 └── Resources/           Assets.xcassets, TrainingPuzzles.json, Openings.json
 ```
 
@@ -195,7 +199,26 @@ Dadurch bleiben Seite, Cookies/Sitzung, Scrollposition, laufende Partie und
 JavaScript-Zustand über jeden Tabwechsel erhalten; `WebViewContainer.updateUIView`
 lädt nie nach. Geladen wird erst beim ersten Besuch des Tabs (`startIfNeeded()`).
 
-**Tabs.** HOME · CHESS.COM · STOCKFISH · TRAINING · SETTINGS (`AppTab`).
+**Tabs.** HOME · CHESS.COM · TRAINING · SETTINGS (`AppTab`). Chess.com ist der
+zentrale Arbeitsbereich; einen eigenen Stockfish-Tab gibt es nicht mehr.
+
+**Analysepanel.** `AnalysisPanelView` sitzt direkt unter der WebView und ist die
+einzige Stelle, an der Live-Ergebnisse erscheinen. Zugeklappt zeigt es eine
+Zeile: Bewertungs-Chip, bester Zug mit Folgzug, Tiefe, echte Nodes pro Sekunde
+und Analysefortschritt. Aufgeklappt (Chevron) folgen die echten MultiPV-
+Varianten (Tipp öffnet das Analysebrett mit dieser Variante), die verifizierte
+FEN mit Validierungs- und Versionsangaben sowie die Aktionen *Brett*, *Neu* und
+*Drehen*. Alle Werte stammen aus `AnalysisManager`; solange die Engine nichts
+geliefert hat, steht dort ein Platzhalter statt einer erfundenen Zahl.
+
+**Analysebrett.** Das frühere Stockfish-Fenster lebt als Vollbild-Analysebrett
+weiter (`AnalysisView` mit `onClose`): Brett, Pfeile, Natural Move Selection,
+Variantenliste, Zugliste, Editor (inkl. FEN-Eingabe), PGN-Import/-Export und
+die Analyse-Einstellungen. Erreichbar über Home („Neue Analyse“), das Panel
+(„Brett“) und das Training („Eigene Stellung“). Beim Schließen übernimmt das
+Panel wieder die Stellung der Seite (`resumeFromChessCom()` + erzwungener
+Snapshot). Während das Brett offen ist, werden Seiten-Payloads ignoriert, damit
+keine zweite Berechnung die bearbeitete Stellung überschreibt.
 
 **EngineManager.** Zentraler Besitzer der Engine: wählt Backend (Stockfish oder
 eingebaute Engine), setzt Threads/Hash/MultiPV und ist der einzige Ort, der
@@ -209,7 +232,7 @@ keine Bauern auf der Grundlinie, Gegner nicht im Schach, En-passant-Feld
 konsistent. Unveränderte Stellungen werden dedupliziert; erst danach startet die
 Engine neu. Der Snapshot enthält FEN, Zugrecht, letzten Zug (SAN), Ply,
 Zugfolge, Spielende und die Zugart (Rochade, En passant, Umwandlung, Doppelschritt,
-Schlagen) – sichtbar im Stockfish-Tab inkl. Fortschrittsbalken (Tiefe/Zeit).
+Schlagen) – sichtbar im Analysepanel inkl. Fortschrittsbalken (Tiefe/Zeit).
 
 **Tests:** `ChessEngineProTests/LiveSyncTests.swift` deckt Veröffentlichung,
 Deduplizierung, Zugarten, Matt-Erkennung und alle Ablehnungsgründe ab.
@@ -255,28 +278,28 @@ werden verworfen, doppelte Stellungen (gleiche FEN und gleicher Ply) gezählt un
 
 **Engine.** Eine neue gültige Stellung wird sofort analysiert: die laufende
 Suche wird über den Generationen-Zähler beendet, das Engine-Objekt bleibt
-bestehen (`position fen …`, MultiPV aus den Einstellungen). Während der
-Chess.com-Tab sichtbar ist, ist die Tiefe auf 12 begrenzt (`liveDepthCap`),
-damit die Partie flüssig bleibt; im Stockfish-Tab gilt die volle Tiefe.
+bestehen (`position fen …`, MultiPV aus den Einstellungen). Auf dem Chess.com-
+Bildschirm gilt die volle eingestellte Tiefe; auf den anderen Tabs bleibt die
+Live-Analyse auf Tiefe 12 begrenzt (`liveDepthCap`), damit im Hintergrund keine
+CPU verbrannt wird. Alte Ergebnisse werden beim Positionswechsel sofort
+geleert, späte Engine-Updates über die Generation verworfen.
 
-**Oberfläche.** Der Stockfish-Tab zeigt Quelle, Ereignis, Versionsnummer,
-Ply/Zugrecht, die zuletzt erkannten Züge, den Fortschrittsbalken und die
-FEN. Darunter steht die *Natural Move Selection* mit bestem Zug, guter
-Alternative und interessanter Variante – jeweils mit Bewertung, Qualität und
-einer aus den Zugeigenschaften abgeleiteten Begründung (`StrategicExplainer`).
-Die Pfeile der Varianten werden animiert auf das Brett gezeichnet.
+**Chess.com-Bildschirm.** Die Seite füllt den Bildschirm ohne Adressleiste und
+ohne Browser-Navigation. Darüber liegt ein kompakter Kopf: Krone, Schriftzug,
+Verbindungs- und Login-Status, Seitenmodus, ein dezentes Synchronisationssymbol
+und ein Menü mit Start, Online spielen, Puzzles, Profil, Login, Neuladen und
+„Analysebrett öffnen“. Darunter das Analysepanel. Die WebView wird beim
+App-Start einmal geladen; ein Tabwechsel layoutet sie nur neu und lädt sie nie
+nach, damit Sitzung, Scrollposition und laufende Partie erhalten bleiben.
 
-**Chess.com-Tab.** Die Seite füllt den Tab ohne Adressleiste und ohne
-Browser-Navigation; die App zeigt nur einen Kopf mit Sitzungsstatus, einen
-Ladeknopf, fünf Schnellzugriffe (Start, Online spielen, Puzzles, Profil, Login)
-und den Live-Streifen. Die WebView wird beim App-Start einmal geladen; ein
-Tabwechsel layoutet sie nur neu und lädt sie nie nach, damit Sitzung, Scroll-
-position und laufende Partie erhalten bleiben.
-
-**Engine in Partien.** Jede übernommene Stellung wird analysiert, auch während
-einer laufenden Partie. Die App ist für Training und Partien gegen Bots gedacht;
-in gewerteten Partien gegen Menschen ist Engine-Hilfe regelwidrig, und die
-Verantwortung dafür liegt beim Nutzer.
+**Wo Vorschläge erlaubt sind.** `LiveAnalysisPolicy` klassifiziert die
+Chess.com-URL in Seitenmodi: Analysebrett, Training/Puzzles, Partien gegen den
+Computer und die übrige Seite sind freigeschaltet; `/game/…` und `/play/online`
+gelten als laufende Online-Partie. In diesem Modus stoppt
+`AnalysisManager.suspendLiveAnalysis()` die Suche, leert Bewertung und
+Varianten, und `AppEnvironment` reicht keine Seiten-Payloads mehr an die Engine
+weiter – das Panel zeigt stattdessen einen Hinweis. Damit erscheinen
+Engine-Vorschläge ausschließlich in unterstützten Trainings- und Analysemodi.
 
 **Ehrliche FEN.** Der Fallback kennzeichnet in `FenConfidence`, welche Felder
 verifiziert sind. Zugrecht ohne Uhr, Rochaderechte, En-passant-Feld,
@@ -300,10 +323,10 @@ Umgebung ohne iPhone nicht möglich.
 
 ## 8. Version
 
-`2.3.0` (Build 6) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+`2.4.0` (Build 7) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
 ---
 
-## 9. Qualitätsprüfung (v2.2)
+## 9. Qualitätsprüfung (v2.4)
 
 **Automatisch geprüft (GitHub Actions, iOS-Simulator):**
 
@@ -316,6 +339,7 @@ Umgebung ohne iPhone nicht möglich.
 | Jede übernommene Stellung erreicht die Engine, auch während einer laufenden Partie | `AnalysisManagerLiveTests` |
 | Nur gültige Stellungen erreichen Brett und Engine; schnelle Züge analysieren nur die letzte Stellung; Reload-Rebase | `AnalysisManagerLiveTests` |
 | WebView lädt genau einmal, Tabwechsel/Snapshot/Session-Refresh navigieren nicht | `ChessComBrowserLifecycleTests` |
+| Seitenmodus-Klassifikation (Computer, Analyse, Training, Online-Partie) und Vorschlags-Gate | `LiveAnalysisPolicyTests` |
 | Regeln, Perft, SAN/PGN, Engine-Bridge, Speicherung | `ChessCoreTests`, `EngineTests` |
 
 **Nicht geprüft – benötigt ein echtes iPhone:**
@@ -328,9 +352,14 @@ Umgebung ohne iPhone nicht möglich.
   laufende Partie auf dem Gerät.
 * Signierung/Sideloading und der Chess.com-Login im WebView.
 * Stockfish-Laufzeit auf dem Gerät (CPU-Last, Wärme, Hintergrundverhalten).
-* Darstellung der neuen Karten, Pfeile und Animationen auf dem Gerät.
+* Darstellung des neuen Layouts (kompakter Kopf, Analysepanel, aufgeklappter
+  Detailbereich) auf kleinen und großen iPhones, inklusive Safe Areas und
+  Querformat.
+* Ob der Chess.com-Seitenmodus in jeder Spielart an der erwarteten URL hängt;
+  die Klassifikation ist bewusst rein URL-basiert und nicht gegen die Live-Seite
+  geprüft.
 
 **Bekannte Grenzen:** Canvas-only-Boards oder geänderte Chess.com-Klassen
 liefern keine Stellung; virtuelle Zuglisten ohne SAN führen zum Brett-Fallback
-mit „geschätzt". Die Engine analysiert auch laufende Partien – die App ist für
-Training und Partien gegen Bots gedacht.
+mit „geschätzt". In Online-Partien zeigt das Panel keine Engine-Vorschläge; für
+Analyse, Training und Partien gegen den Computer ist die Analyse freigeschaltet.

@@ -241,6 +241,7 @@ struct TrainingView: View {
                 .environmentObject(stats)
         case .editor:
             PositionEditorView(initialBoard: environment.analysis.board) { board in
+                route = nil
                 environment.openInAnalysis(fen: board.fen)
             }
             .environmentObject(settings)

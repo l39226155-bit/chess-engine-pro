@@ -69,7 +69,7 @@ struct HomeView: View {
                     Text("Chess.com")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.text)
-                    Text("Melde dich mit deinem bestehenden Konto an und spiele direkt in der App.")
+                    Text("Melde dich an, spiele im eingebetteten Brett und sieh die Stockfish-Analyse direkt darunter – ohne Bildschirmwechsel.")
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -88,7 +88,7 @@ struct HomeView: View {
             .buttonStyle(PrimaryButtonStyle())
 
             HStack(spacing: 8) {
-                Pill(text: "WKWebView", icon: "lock.shield.fill")
+                Pill(text: "Engine integriert", icon: "cpu")
                 Pill(text: "Sitzung bleibt lokal", icon: "iphone")
                 Spacer()
             }
@@ -107,7 +107,7 @@ struct HomeView: View {
                                 subtitle: "Brett & Engine",
                                 tint: Theme.accent) {
                     analysis.reset()
-                    environment.selectedTab = .stockfish
+                    environment.presentAnalysis()
                 }
                 QuickActionCard(icon: "doc.badge.arrow.up",
                                 title: "PGN importieren",
@@ -150,7 +150,7 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 Button {
                     analysis.analyze()
-                    environment.selectedTab = .stockfish
+                    environment.presentAnalysis()
                 } label: {
                     Label("Analyse öffnen", systemImage: "play.fill")
                 }

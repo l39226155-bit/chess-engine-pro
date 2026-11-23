@@ -2,9 +2,9 @@
 //  RootView.swift
 //  CHESS ENGINE PRO
 //
-//  Custom premium bottom navigation with the five main areas. The Chess.com
-//  layer is mounted once and only hidden, never destroyed, so the embedded
-//  WKWebView keeps its session and page state across tab switches.
+//  Four tabs. The Chess.com screen is the central workspace and the only place
+//  the web view lives: it is mounted once and only hidden, never destroyed, so
+//  the embedded WKWebView keeps its session and page state across tab switches.
 //
 
 import SwiftUI
@@ -29,6 +29,14 @@ struct RootView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .zIndex(10)
             }
+        }
+        .fullScreenCover(isPresented: $environment.isAnalysisPresented,
+                         onDismiss: { environment.closeAnalysis() }) {
+            AnalysisView(onClose: { environment.isAnalysisPresented = false })
+                .environmentObject(environment)
+                .environmentObject(settings)
+                .environmentObject(environment.analysis)
+                .environmentObject(environment.browser)
         }
         .onAppear {
             if settings.settings.engineEnabled {
@@ -60,8 +68,6 @@ struct RootView: View {
         switch environment.selectedTab {
         case .home:
             HomeView()
-        case .stockfish:
-            AnalysisView()
         case .training:
             TrainingView()
         case .settings:
@@ -78,41 +84,41 @@ struct RootView: View {
             ForEach(AppTab.allCases) { tab in
                 Button {
                     if environment.selectedTab == tab {
-                        // Repeated taps restart the analysis of the live position.
-                        if tab == .stockfish { environment.analysis.analyze() }
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            environment.selectedTab = tab
+                        // Repeated taps refresh the panel's position without
+                        // touching the page.
+                        if tab == .chessCom {
+                            environment.browser.prepareForDisplay()
                         }
+                    } else {
+                        environment.selectedTab = tab
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Image(systemName: tab.icon)
-                            .font(.system(size: 17, weight: .semibold))
-                            .frame(height: 20)
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(height: 19)
                         Text(tab.title)
                             .font(.system(size: 9, weight: .medium, design: .rounded))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .minimumScaleFactor(0.75)
                     }
                     .foregroundStyle(environment.selectedTab == tab ? Theme.accent : Theme.secondaryText)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .padding(.top, 7)
+                    .padding(.bottom, 3)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
             }
         }
-        .padding(.top, 6)
-        .padding(.bottom, 2)
         .background(
             Theme.secondaryBackground
-                .overlay(
+                .overlay(alignment: .top) {
                     Rectangle()
                         .fill(Theme.divider)
-                        .frame(height: 1),
-                    alignment: .top
-                )
+                        .frame(height: 1)
+                }
                 .ignoresSafeArea(edges: .bottom)
         )
     }

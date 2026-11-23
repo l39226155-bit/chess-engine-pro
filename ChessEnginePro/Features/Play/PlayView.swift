@@ -2,9 +2,10 @@
 //  PlayView.swift
 //  CHESS ENGINE PRO
 //
-//  Embedded Chess.com experience. Only the page itself is shown - no address
-//  bar, no back/forward buttons, no reload menu - so the tab reads as part of
-//  the app instead of a browser window.
+//  The merged Chess.com screen: a compact header, the untouched Chess.com page
+//  and the integrated Stockfish panel directly underneath. Only the page itself
+//  is shown - no address bar, no back/forward chrome - so the screen reads as
+//  one app instead of a browser window with a widget.
 //
 
 import SwiftUI
@@ -18,24 +19,8 @@ struct PlayView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            quickLinks
-            ZStack(alignment: .top) {
-                WebViewContainer(webView: browser.webView)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Theme.background)
-
-                if browser.isLoading {
-                    ProgressView(value: max(0.03, browser.progress))
-                        .progressViewStyle(.linear)
-                        .tint(Theme.accent)
-                }
-
-                if let message = browser.errorMessage {
-                    errorBanner(message)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            liveStrip
+            webArea
+            AnalysisPanelView()
         }
         .background(Theme.background)
         .onAppear {
@@ -57,144 +42,138 @@ struct PlayView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "crown.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.accent)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Theme.accent.opacity(0.14)))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Chess.com")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.text)
-                Text(browser.hasSession
-                     ? "Angemeldet · Sitzung bleibt gespeichert"
-                     : "Nicht angemeldet · Anmeldung über Chess.com")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(1)
+        HStack(spacing: 9) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Theme.accentMuted)
+                    .frame(width: 28, height: 28)
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
             }
-
-            Spacer(minLength: 0)
-
-            if browser.isLoading {
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(Theme.accent)
-                    .frame(width: 30, height: 30)
-            } else {
-                Button {
-                    browser.reload()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.secondaryText)
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(Theme.panel))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Seite neu laden")
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Theme.secondaryBackground)
-    }
-
-    private var quickLinks: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                quickLink("Start", url: ChessComBrowser.homeURL)
-                quickLink("Online spielen", url: ChessComBrowser.playURL)
-                quickLink("Puzzles", url: ChessComBrowser.puzzlesURL)
-                quickLink("Profil", url: ChessComBrowser.profileURL)
-                quickLink("Login", url: ChessComBrowser.loginURL)
-            }
-            .padding(.horizontal, 14)
-        }
-        .padding(.vertical, 8)
-        .background(Theme.secondaryBackground)
-    }
-
-    private func quickLink(_ title: String, url: URL) -> some View {
-        Button {
-            browser.load(url)
-        } label: {
-            Text(title)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(Theme.text)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(Theme.panel))
-                .overlay(Capsule().stroke(Theme.divider, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Live detection
-
-    private var liveStrip: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(analysis.liveSource == .chessCom ? Theme.info : Theme.secondaryText)
-                .frame(width: 6, height: 6)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Live-Erkennung")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                Text("Chess.com")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.text)
-                Text(liveDetail)
-                    .font(.system(size: 9))
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(connectionColor)
+                        .frame(width: 5, height: 5)
+                    Text(statusText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(1)
+                }
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 6)
 
-            if analysis.isAnalyzing {
-                Text("T\(analysis.depth)")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Theme.accent)
-            }
+            syncIndicator
 
-            Button {
-                environment.selectedTab = .stockfish
+            Menu {
+                Button { browser.load(ChessComBrowser.homeURL) } label: {
+                    Label("Start", systemImage: "house")
+                }
+                Button { browser.load(ChessComBrowser.playURL) } label: {
+                    Label("Online spielen", systemImage: "play.circle")
+                }
+                Button { browser.load(ChessComBrowser.puzzlesURL) } label: {
+                    Label("Puzzles", systemImage: "puzzlepiece")
+                }
+                Button { browser.load(ChessComBrowser.profileURL) } label: {
+                    Label("Profil", systemImage: "person.crop.circle")
+                }
+                Button { browser.openLogin() } label: {
+                    Label("Login", systemImage: "person.badge.key")
+                }
+                Divider()
+                Button { browser.reload() } label: {
+                    Label("Seite neu laden", systemImage: "arrow.clockwise")
+                }
+                Button { environment.presentAnalysis() } label: {
+                    Label("Analysebrett öffnen", systemImage: "square.grid.3x3")
+                }
             } label: {
-                Text("Analyse")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Theme.accent.opacity(0.14)))
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(width: 30, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Theme.elevated)
+                    )
             }
-            .buttonStyle(.plain)
+            .accessibilityLabel("Seite, Sitzung und Analysebrett")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Theme.panel)
-        .overlay(
-            Rectangle().fill(Theme.divider).frame(height: 1),
-            alignment: .top
-        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Theme.secondaryBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.divider).frame(height: 1)
+        }
     }
 
-    private var liveDetail: String {
-        if analysis.liveSource == .chessCom, let snapshot = analysis.liveSnapshot {
-            let event = analysis.liveEvent?.kind.localizedTitle ?? "Stellung erkannt"
-            let estimated = snapshot.confidence.isExact ? "" : " · teilweise geschätzt"
-            return "\(event) · Zug \(snapshot.ply) · \(snapshot.statusText)\(estimated)"
+    private var connectionColor: Color {
+        if browser.errorMessage != nil { return Theme.error }
+        if browser.isLoading { return Theme.warning }
+        return Theme.accent
+    }
+
+    private var statusText: String {
+        if browser.errorMessage != nil { return "Verbindung unterbrochen" }
+        if browser.isLoading && browser.currentURL == nil { return "Verbindung wird aufgebaut" }
+        let connection = browser.isLoading ? "Lädt" : "Verbunden"
+        let session = browser.hasSession ? "Angemeldet" : "Nicht angemeldet"
+        return "\(connection) · \(session) · \(browser.pageMode.localizedTitle)"
+    }
+
+    /// Quiet synchronisation glyph. It turns into a spinner only while the page
+    /// is actually loading, so the header never draws attention otherwise.
+    @ViewBuilder
+    private var syncIndicator: some View {
+        if browser.isLoading {
+            ProgressView()
+                .controlSize(.mini)
+                .tint(Theme.accent)
+                .frame(width: 26, height: 28)
+                .accessibilityLabel("Seite wird geladen")
+        } else {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(browser.detectionCount > 0 ? Theme.accent : Theme.secondaryText.opacity(0.55))
+                .frame(width: 26, height: 28)
+                .accessibilityLabel(browser.detectionCount > 0
+                                     ? "Stellung wird synchronisiert"
+                                     : "Noch keine Stellung erkannt")
         }
-        if browser.detectionCount > 0 {
-            return "\(browser.detectionCount) Messungen · noch keine gültige Stellung"
+    }
+
+    // MARK: - Page
+
+    private var webArea: some View {
+        ZStack(alignment: .top) {
+            WebViewContainer(webView: browser.webView)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.background)
+
+            if browser.isLoading {
+                ProgressView(value: max(0.03, min(1, browser.progress)))
+                    .progressViewStyle(.linear)
+                    .tint(Theme.accent)
+            }
+
+            if let message = browser.errorMessage {
+                errorBanner(message)
+            }
         }
-        return "Öffne eine Partie, ein Puzzle oder ein Analysebrett"
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorBanner(_ message: String) -> some View {
         VStack(spacing: 8) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 22))
+                .font(.system(size: 20))
                 .foregroundStyle(Theme.warning)
             Text("Chess.com konnte nicht geladen werden")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -206,7 +185,7 @@ struct PlayView: View {
             Button("Erneut versuchen") { browser.reload() }
                 .buttonStyle(SecondaryButtonStyle())
         }
-        .padding(18)
+        .padding(16)
         .premiumCard()
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

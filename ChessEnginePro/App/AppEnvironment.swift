@@ -6,12 +6,12 @@
 //
 
 import Foundation
+import Combine
 import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable, Hashable {
     case home
     case chessCom
-    case stockfish
     case training
     case settings
 
@@ -21,7 +21,6 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .home: return "Home"
         case .chessCom: return "Chess.com"
-        case .stockfish: return "Stockfish"
         case .training: return "Training"
         case .settings: return "Settings"
         }
@@ -31,7 +30,6 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .home: return "house.fill"
         case .chessCom: return "crown.fill"
-        case .stockfish: return "cpu"
         case .training: return "graduationcap.fill"
         case .settings: return "gearshape.fill"
         }
@@ -54,12 +52,19 @@ final class AppEnvironment: ObservableObject {
     @Published var selectedTab: AppTab = .home {
         didSet {
             guard oldValue != selectedTab else { return }
-            // Live analysis runs at a lower ceiling while the user is playing on
-            // Chess.com; the analysis screen always gets the full depth.
-            analysis.liveDepthCap = selectedTab == .chessCom ? 12 : nil
-            if selectedTab == .chessCom { hasOpenedChessCom = true }
+            // The panel on the Chess.com screen is the only analysis surface, so
+            // it may use the full configured depth. On the other tabs the live
+            // engine keeps running at a lower ceiling instead of idling.
+            analysis.liveDepthCap = selectedTab == .chessCom ? nil : 12
+            guard selectedTab == .chessCom else { return }
+            if !hasOpenedChessCom { hasOpenedChessCom = true }
+            browser.refreshSessionState()
+            browser.requestLiveSnapshot()
         }
     }
+
+    /// The manual analysis board is shown above the whole app.
+    @Published var isAnalysisPresented = false
 
     /// The page is preloaded at launch, but its positions only reach the app
     /// once the Chess.com tab was actually opened - a hidden page must not move
@@ -68,6 +73,7 @@ final class AppEnvironment: ObservableObject {
     @Published var toastMessage: String?
 
     private var toastTask: Task<Void, Never>?
+    private var pageModeSink: AnyCancellable?
 
     init() {
         let settings = SettingsStore()
@@ -94,10 +100,28 @@ final class AppEnvironment: ObservableObject {
         // the detector rebuilds the position from the board and the move list,
         // the synchroniser then rejects stale, duplicate and invalid updates.
         browser.onPositionPayload = { [weak self, weak analysis] payload in
-            guard let self = self, let analysis = analysis, self.hasOpenedChessCom else { return }
+            guard let self = self, let analysis = analysis else { return }
+            // A hidden page, an open manual board or a rated online game must
+            // never move the board or start a second calculation.
+            guard self.hasOpenedChessCom, !self.isAnalysisPresented else { return }
+            guard self.browser.allowsLiveSuggestions else { return }
             guard let detected = ChessComPositionDetector.detect(payload) else { return }
             analysis.ingest(detected, sequence: payload.sequence, session: payload.session)
         }
+
+        // One gate for the whole app. Supported modes let the engine work, a
+        // running online game stops it and clears the visible results.
+        pageModeSink = browser.$pageMode
+            .removeDuplicates()
+            .sink { mode in
+                Task { @MainActor [weak analysis] in
+                    guard let analysis = analysis else { return }
+                    analysis.liveSuggestionsAllowed = mode.allowsEngineSuggestions
+                    if !mode.allowsEngineSuggestions {
+                        analysis.suspendLiveAnalysis()
+                    }
+                }
+            }
     }
 
     /// iOS lifecycle: stop heavy work in the background, continue on return.
@@ -129,25 +153,51 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// Loads an imported game into the analysis screen.
-    func openInAnalysis(game: PGNGame) {
-        analysis.load(game: game)
-        selectedTab = .stockfish
-        showToast("Partie geladen – Analyse läuft")
-    }
+    // MARK: - Manual analysis board
 
-    /// Loads a position (FEN) into the analysis screen.
-    func openInAnalysis(fen: String) {
-        do {
-            try analysis.setFEN(fen)
-            selectedTab = .stockfish
-        } catch {
-            showToast("Ungültige FEN")
+    /// Shows the analysis board (board, variants, preview, FEN tools) above the
+    /// app. The engine keeps its single instance; only the visible surface
+    /// changes.
+    ///
+    /// `deferred` waits until an importer, editor or sheet that triggered the
+    /// request has finished dismissing, otherwise iOS refuses a second
+    /// presentation at the same time.
+    func presentAnalysis(deferred: Bool = false) {
+        analysis.liveDepthCap = nil
+        guard deferred else {
+            isAnalysisPresented = true
+            return
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            self?.isAnalysisPresented = true
         }
     }
 
-    func startGameReview(game: PGNGame) {
-        selectedTab = .stockfish
-        showToast("Partieprüfung gestartet")
+    func closeAnalysis() {
+        isAnalysisPresented = false
+        analysis.liveDepthCap = selectedTab == .chessCom ? nil : 12
+        guard hasOpenedChessCom else { return }
+        // The panel takes the Chess.com position back instead of keeping the
+        // manually edited board.
+        analysis.resumeFromChessCom()
+        browser.requestLiveSnapshot(force: true)
+    }
+
+    /// Loads an imported game into the analysis board.
+    func openInAnalysis(game: PGNGame) {
+        analysis.load(game: game)
+        presentAnalysis(deferred: true)
+        showToast("Partie geladen – Analyse läuft")
+    }
+
+    /// Loads a position (FEN) into the analysis board.
+    func openInAnalysis(fen: String) {
+        do {
+            try analysis.setFEN(fen)
+            presentAnalysis(deferred: true)
+        } catch {
+            showToast("Ungültige FEN")
+        }
     }
 }

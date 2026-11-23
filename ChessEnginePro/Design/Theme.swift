@@ -22,33 +22,36 @@ extension Color {
 // MARK: - Theme
 
 enum Theme {
-    static let background = Color(hex: 0x0B0D10)
-    static let secondaryBackground = Color(hex: 0x101318)
-    static let card = Color(hex: 0x171B22)
-    static let panel = Color(hex: 0x1D222B)
-    static let field = Color(hex: 0x14181F)
-    static let accent = Color(hex: 0x81B64C)
-    static let accentMuted = Color(hex: 0x81B64C, opacity: 0.16)
-    static let text = Color(hex: 0xF5F5F5)
-    static let secondaryText = Color(hex: 0x9299A5)
-    static let divider = Color(hex: 0xFFFFFF, opacity: 0.06)
-    static let error = Color(hex: 0xE05B5B)
-    static let warning = Color(hex: 0xE0A65B)
-    static let info = Color(hex: 0x5B9BE0)
+    // Surfaces: one background, one panel tone, one elevated tone. No gradients.
+    static let background = Color(hex: 0x101113)
+    static let secondaryBackground = Color(hex: 0x151619)
+    static let card = Color(hex: 0x191A1E)
+    static let panel = Color(hex: 0x191A1E)
+    static let elevated = Color(hex: 0x202126)
+    static let field = Color(hex: 0x1B1C21)
+    static let accent = Color(hex: 0x91BD58)
+    static let accentMuted = Color(hex: 0x91BD58, opacity: 0.14)
+    static let text = Color(hex: 0xE8E8EA)
+    static let secondaryText = Color(hex: 0x85868D)
+    static let border = Color(hex: 0x292A2F)
+    static let divider = Color(hex: 0x292A2F)
+    static let error = Color(hex: 0xD9655F)
+    static let warning = Color(hex: 0xC9A15F)
+    static let info = Color(hex: 0x6E9BD1)
 
-    static let cardRadius: CGFloat = 20
-    static let smallRadius: CGFloat = 12
-    static let padding: CGFloat = 16
+    static let cardRadius: CGFloat = 16
+    static let smallRadius: CGFloat = 10
+    static let padding: CGFloat = 14
 
     static func qualityColor(_ quality: MoveQuality) -> Color {
         switch quality {
-        case .excellent: return Color(hex: 0x81B64C)
-        case .veryGood: return Color(hex: 0x9BC46A)
+        case .excellent: return Color(hex: 0x91BD58)
+        case .veryGood: return Color(hex: 0xA6C978)
         case .good: return Color(hex: 0xB8CF95)
-        case .interesting: return Color(hex: 0x5B9BE0)
-        case .inaccuracy: return Color(hex: 0xE8BE5B)
-        case .mistake: return Color(hex: 0xE08A4A)
-        case .blunder: return Color(hex: 0xE05B5B)
+        case .interesting: return Color(hex: 0x6E9BD1)
+        case .inaccuracy: return Color(hex: 0xD8B45F)
+        case .mistake: return Color(hex: 0xD08A50)
+        case .blunder: return Color(hex: 0xD9655F)
         }
     }
 }
@@ -70,7 +73,7 @@ struct CardBackground: ViewModifier {
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
                             .stroke(Theme.divider, lineWidth: 1)
                     )
-                    .shadow(color: Color.black.opacity(0.28), radius: 14, x: 0, y: 8)
+                    .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
             )
     }
 }
@@ -90,10 +93,10 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
-            .foregroundStyle(Color(hex: 0x0B0D10))
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color(hex: 0x101113))
             .frame(maxWidth: fullWidth ? .infinity : nil)
-            .padding(.vertical, 14)
+            .padding(.vertical, 13)
             .padding(.horizontal, 20)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
