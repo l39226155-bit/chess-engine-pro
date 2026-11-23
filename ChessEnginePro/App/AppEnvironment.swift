@@ -57,8 +57,14 @@ final class AppEnvironment: ObservableObject {
             // Live analysis runs at a lower ceiling while the user is playing on
             // Chess.com; the analysis screen always gets the full depth.
             analysis.liveDepthCap = selectedTab == .chessCom ? 12 : nil
+            if selectedTab == .chessCom { hasOpenedChessCom = true }
         }
     }
+
+    /// The page is preloaded at launch, but its positions only reach the app
+    /// once the Chess.com tab was actually opened - a hidden page must not move
+    /// the board or start the engine behind the user's back.
+    private var hasOpenedChessCom = false
     @Published var toastMessage: String?
 
     private var toastTask: Task<Void, Never>?
@@ -87,8 +93,8 @@ final class AppEnvironment: ObservableObject {
         // Every payload the page posts is verified before it reaches the model:
         // the detector rebuilds the position from the board and the move list,
         // the synchroniser then rejects stale, duplicate and invalid updates.
-        browser.onPositionPayload = { [weak analysis] payload in
-            guard let analysis = analysis else { return }
+        browser.onPositionPayload = { [weak self, weak analysis] payload in
+            guard let self = self, let analysis = analysis, self.hasOpenedChessCom else { return }
             guard let detected = ChessComPositionDetector.detect(payload) else { return }
             analysis.ingest(detected, sequence: payload.sequence, session: payload.session)
         }
