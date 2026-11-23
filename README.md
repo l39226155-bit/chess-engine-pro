@@ -266,12 +266,17 @@ Alternative und interessanter Variante – jeweils mit Bewertung, Qualität und
 einer aus den Zugeigenschaften abgeleiteten Begründung (`StrategicExplainer`).
 Die Pfeile der Varianten werden animiert auf das Brett gezeichnet.
 
-**Fair Play.** Die Engine läuft nur dort, wo Hilfe erlaubt ist
-(`LiveAnalysisPolicy`): Analysebrett, Puzzles, Training und Partien gegen den
-Computer. Eine laufende Online-Partie auf Chess.com wird gespiegelt, aber nicht
-analysiert; der Stockfish-Tab nennt den Grund und startet auch auf Anforderung
-nicht. Erst das Partieende oder das eigene Brett (`releaseLiveGuard`) gibt die
-Engine wieder frei.
+**Chess.com-Tab.** Die Seite füllt den Tab ohne Adressleiste und ohne
+Browser-Navigation; die App zeigt nur einen Kopf mit Sitzungsstatus, einen
+Ladeknopf, fünf Schnellzugriffe (Start, Online spielen, Puzzles, Profil, Login)
+und den Live-Streifen. Die WebView wird beim App-Start einmal geladen; ein
+Tabwechsel layoutet sie nur neu und lädt sie nie nach, damit Sitzung, Scroll-
+position und laufende Partie erhalten bleiben.
+
+**Engine in Partien.** Jede übernommene Stellung wird analysiert, auch während
+einer laufenden Partie. Die App ist für Training und Partien gegen Bots gedacht;
+in gewerteten Partien gegen Menschen ist Engine-Hilfe regelwidrig, und die
+Verantwortung dafür liegt beim Nutzer.
 
 **Ehrliche FEN.** Der Fallback kennzeichnet in `FenConfidence`, welche Felder
 verifiziert sind. Zugrecht ohne Uhr, Rochaderechte, En-passant-Feld,
@@ -295,10 +300,10 @@ Umgebung ohne iPhone nicht möglich.
 
 ## 8. Version
 
-`2.1.0` (Build 4) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+`2.2.0` (Build 5) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
 ---
 
-## 9. Qualitätsprüfung (v2.1)
+## 9. Qualitätsprüfung (v2.2)
 
 **Automatisch geprüft (GitHub Actions, iOS-Simulator):**
 
@@ -308,7 +313,7 @@ Umgebung ohne iPhone nicht möglich.
 | Fallback-Markierung als geschätzt (Zugrecht, Rochade, En passant, Zähler) | `ChessComDetectionTests` |
 | Plausibilität: Königszahl, Bauern auf der Grundlinie, Figurenzahl, benachbarte Könige, unlesbare FEN | `ChessComDetectionTests`, `LiveSyncTests` |
 | Versionierung, schnelle Zugfolgen, veraltete/doppelte Updates, Undo/Import/Reset, Ereignisse | `LiveSyncVersionTests` |
-| Fair-Play-Gate (Analyse/Training/Computer erlaubt, laufende Online-Partie gesperrt) | `LiveAnalysisPolicyTests`, `AnalysisManagerLiveTests` |
+| Jede übernommene Stellung erreicht die Engine, auch während einer laufenden Partie | `AnalysisManagerLiveTests` |
 | Nur gültige Stellungen erreichen Brett und Engine; schnelle Züge analysieren nur die letzte Stellung; Reload-Rebase | `AnalysisManagerLiveTests` |
 | WebView lädt genau einmal, Tabwechsel/Snapshot/Session-Refresh navigieren nicht | `ChessComBrowserLifecycleTests` |
 | Regeln, Perft, SAN/PGN, Engine-Bridge, Speicherung | `ChessCoreTests`, `EngineTests` |
@@ -327,5 +332,5 @@ Umgebung ohne iPhone nicht möglich.
 
 **Bekannte Grenzen:** Canvas-only-Boards oder geänderte Chess.com-Klassen
 liefern keine Stellung; virtuelle Zuglisten ohne SAN führen zum Brett-Fallback
-mit „geschätzt". Laufende Online-Partien sind absichtlich von der Engine
-ausgenommen.
+mit „geschätzt". Die Engine analysiert auch laufende Partien – die App ist für
+Training und Partien gegen Bots gedacht.

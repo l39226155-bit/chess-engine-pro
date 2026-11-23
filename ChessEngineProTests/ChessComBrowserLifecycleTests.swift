@@ -30,7 +30,7 @@ final class ChessComBrowserLifecycleTests: XCTestCase {
         let before = browser.navigationCount
 
         // Exactly what PlayView does on every tab change.
-        browser.startIfNeeded()
+        browser.prepareForDisplay()
         browser.refreshSessionState()
         browser.requestLiveSnapshot()
         _ = browser.hasSession

@@ -13,9 +13,6 @@ import XCTest
 @MainActor
 final class AnalysisManagerLiveTests: XCTestCase {
 
-    private let analysisURL = "https://www.chess.com/analysis"
-    private let liveGameURL = "https://www.chess.com/game/live/1"
-
     private func makeManager() -> AnalysisManager {
         let settings = SettingsStore()
         settings.settings.engineEnabled = true
@@ -31,7 +28,6 @@ final class AnalysisManagerLiveTests: XCTestCase {
     private func detected(_ board: Board,
                           san: [String] = [],
                           uci: [String] = [],
-                          url: String,
                           isGameOver: Bool = false,
                           boardID: String = "board-1") -> DetectedPosition {
         DetectedPosition(board: board,
@@ -41,7 +37,6 @@ final class AnalysisManagerLiveTests: XCTestCase {
                          isGameOver: isGameOver,
                          userColor: .white,
                          boardID: boardID,
-                         url: url,
                          origin: .history,
                          validation: PositionValidation.validate(board),
                          confidence: .exact)
@@ -57,6 +52,17 @@ final class AnalysisManagerLiveTests: XCTestCase {
         return (board, [san], [move.uci])
     }
 
+    private func positionAfterE4AndE5() -> (board: Board, san: [String], uci: [String]) {
+        let e4 = positionAfterE4()
+        var board = e4.board
+        guard let reply = board.move(from: Square(name: "e7")!, to: Square(name: "e5")!) else {
+            return (board, e4.san, e4.uci)
+        }
+        let replySAN = board.san(for: reply)
+        board.apply(reply)
+        return (board, e4.san + [replySAN], e4.uci + [reply.uci])
+    }
+
     private func waitForAnalysis(_ manager: AnalysisManager, timeout: TimeInterval = 8) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -66,118 +72,72 @@ final class AnalysisManagerLiveTests: XCTestCase {
         return false
     }
 
-    // MARK: - Fair play
-
-    func testRunningOnlineGameIsMirroredWithoutAnyEngineWork() {
-        let manager = makeManager()
-        let e4 = positionAfterE4()
-
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: liveGameURL),
-                       sequence: 1,
-                       session: "session-1")
-
-        XCTAssertEqual(manager.board.fen, e4.board.fen)
-        XCTAssertNotNil(manager.engineBlockedReason)
-        XCTAssertNil(manager.liveContextLabel)
-        XCTAssertFalse(manager.isAnalyzing)
-        XCTAssertTrue(manager.candidates.isEmpty)
-
-        // The analysis screen must not bypass the guard either.
-        manager.analyze()
-        XCTAssertFalse(manager.isAnalyzing)
-        XCTAssertTrue(manager.candidates.isEmpty)
-        XCTAssertNotNil(manager.statusMessage)
-        manager.stop()
-    }
-
-    func testFinishedGameOnAGamePageIsAnalysed() async {
-        let manager = makeManager()
-        let e4 = positionAfterE4()
-
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: liveGameURL, isGameOver: true),
-                       sequence: 1,
-                       session: "session-1")
-
-        XCTAssertNil(manager.engineBlockedReason)
-        XCTAssertEqual(manager.liveContextLabel, "Partie beendet")
-        let analysed = await waitForAnalysis(manager)
-        XCTAssertTrue(analysed, "Die Engine lief nicht für die beendete Partie")
-        manager.stop()
-    }
-
-    func testLocalBoardReleasesTheFairPlayGuard() {
-        let manager = makeManager()
-        let e4 = positionAfterE4()
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: liveGameURL),
-                       sequence: 1,
-                       session: "session-1")
-        XCTAssertNotNil(manager.engineBlockedReason)
-
-        manager.reset()
-        XCTAssertNil(manager.engineBlockedReason)
-        XCTAssertNil(manager.liveContextLabel)
-        manager.stop()
-    }
-
     // MARK: - Engine hand-off
 
-    func testAnalysisPageStartsTheEngineForTheDetectedPosition() async {
+    func testDetectedPositionStartsTheEngine() async {
         let manager = makeManager()
         let e4 = positionAfterE4()
 
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: analysisURL),
+        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci),
                        sequence: 1,
                        session: "session-1")
 
-        XCTAssertNil(manager.engineBlockedReason)
-        XCTAssertEqual(manager.liveContextLabel, "Analysebrett")
         XCTAssertEqual(manager.board.fen, e4.board.fen)
+        XCTAssertEqual(manager.liveSource, .chessCom)
 
         let started = await waitForAnalysis(manager)
         XCTAssertTrue(started, "Die Engine lieferte keine Varianten")
-        XCTAssertFalse(manager.candidates.isEmpty)
         for candidate in manager.candidates {
             XCTAssertTrue(manager.board.isLegal(candidate.move), candidate.san)
         }
         manager.stop()
     }
 
-    func testRapidUpdatesAnalyseOnlyTheLatestPosition() async {
+    func testRunningGameIsAnalysedWhileItIsMirrored() async {
         let manager = makeManager()
         let e4 = positionAfterE4()
 
-        var second = e4.board
-        guard let reply = second.move(from: Square(name: "e7")!, to: Square(name: "e5")!) else {
-            return XCTFail("e7e5 nicht gefunden")
-        }
-        let replySAN = second.san(for: reply)
-        second.apply(reply)
-
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: analysisURL),
+        // Training and games against the computer: the engine runs while the
+        // position is mirrored.
+        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, isGameOver: false),
                        sequence: 1,
                        session: "session-1")
-        manager.ingest(detected(second,
-                                san: e4.san + [replySAN],
-                                uci: e4.uci + [reply.uci],
-                                url: analysisURL),
+
+        XCTAssertEqual(manager.board.fen, e4.board.fen)
+        let analysed = await waitForAnalysis(manager)
+        XCTAssertTrue(analysed, "Die Engine lief nicht für die laufende Stellung")
+        manager.stop()
+    }
+
+    func testRapidUpdatesAnalyseOnlyTheLatestPosition() async {
+        let manager = makeManager()
+        let e4 = positionAfterE4()
+        let e5 = positionAfterE4AndE5()
+
+        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci),
+                       sequence: 1,
+                       session: "session-1")
+        manager.ingest(detected(e5.board, san: e5.san, uci: e5.uci),
                        sequence: 2,
                        session: "session-1")
 
         let analysed = await waitForAnalysis(manager)
         XCTAssertTrue(analysed, "Die Engine lief nicht für die letzte Stellung")
-        XCTAssertEqual(manager.board.fen, second.fen)
+        XCTAssertEqual(manager.board.fen, e5.board.fen)
         XCTAssertEqual(manager.liveSync.snapshot?.ply, 2)
         for candidate in manager.candidates {
-            XCTAssertTrue(second.isLegal(candidate.move), candidate.san)
+            XCTAssertTrue(e5.board.isLegal(candidate.move), candidate.san)
         }
         manager.stop()
     }
+
+    // MARK: - Guard rails
 
     func testInvalidDetectionNeverReachesTheBoard() {
         let manager = makeManager()
         let start = manager.board
 
-        manager.ingest(detected(Board.empty, url: analysisURL),
+        manager.ingest(detected(Board.empty),
                        sequence: 1,
                        session: "session-1")
 
@@ -191,10 +151,10 @@ final class AnalysisManagerLiveTests: XCTestCase {
         let manager = makeManager()
         let e4 = positionAfterE4()
 
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: analysisURL),
+        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci),
                        sequence: 5,
                        session: "session-1")
-        manager.ingest(detected(Board(), url: analysisURL),
+        manager.ingest(detected(Board()),
                        sequence: 4,
                        session: "session-1")
 
@@ -206,30 +166,38 @@ final class AnalysisManagerLiveTests: XCTestCase {
     func testReloadedPageIsRebasedInsteadOfRejected() {
         let manager = makeManager()
         let e4 = positionAfterE4()
+        let e5 = positionAfterE4AndE5()
 
-        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, url: analysisURL),
+        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci),
                        sequence: 40,
                        session: "session-1")
         let before = manager.liveSync.version
 
-        var second = e4.board
-        guard let reply = second.move(from: Square(name: "e7")!, to: Square(name: "e5")!) else {
-            return XCTFail("e7e5 nicht gefunden")
-        }
-        let replySAN = second.san(for: reply)
-        second.apply(reply)
-
         // New page session with a counter that starts at 1 again.
-        manager.ingest(detected(second,
-                                san: e4.san + [replySAN],
-                                uci: e4.uci + [reply.uci],
-                                url: analysisURL),
+        manager.ingest(detected(e5.board, san: e5.san, uci: e5.uci),
                        sequence: 1,
                        session: "session-2")
 
-        XCTAssertEqual(manager.board.fen, second.fen)
+        XCTAssertEqual(manager.board.fen, e5.board.fen)
         XCTAssertGreaterThan(manager.liveSync.version, before)
         XCTAssertEqual(manager.syncStats.stale, 0)
+        manager.stop()
+    }
+
+    func testNewDetectedGameReplacesTheMirroredBoard() {
+        let manager = makeManager()
+        let e4 = positionAfterE4()
+
+        manager.ingest(detected(e4.board, san: e4.san, uci: e4.uci, boardID: "game-1"),
+                       sequence: 1,
+                       session: "session-1")
+        XCTAssertEqual(manager.board.fen, e4.board.fen)
+
+        manager.ingest(detected(Board(), boardID: "game-2"),
+                       sequence: 2,
+                       session: "session-1")
+
+        XCTAssertEqual(manager.board.fen, Board.startFEN)
         manager.stop()
     }
 }

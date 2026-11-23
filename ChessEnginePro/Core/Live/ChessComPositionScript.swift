@@ -218,7 +218,6 @@ enum ChessComPositionScript {
         post({
           session: session,
           sequence: sequence,
-          url: location.href,
           placement: board.placement,
           sideToMove: sideToMove,
           moves: moves,

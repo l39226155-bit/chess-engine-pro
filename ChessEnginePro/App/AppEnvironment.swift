@@ -30,7 +30,7 @@ enum AppTab: String, CaseIterable, Identifiable, Hashable {
     var icon: String {
         switch self {
         case .home: return "house.fill"
-        case .chessCom: return "safari.fill"
+        case .chessCom: return "crown.fill"
         case .stockfish: return "cpu"
         case .training: return "graduationcap.fill"
         case .settings: return "gearshape.fill"

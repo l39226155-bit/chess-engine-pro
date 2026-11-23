@@ -25,8 +25,6 @@ final class ChessComBrowser: NSObject, ObservableObject {
 
     @Published private(set) var progress: Double = 0
     @Published private(set) var isLoading: Bool = false
-    @Published private(set) var canGoBack: Bool = false
-    @Published private(set) var canGoForward: Bool = false
     @Published private(set) var currentURL: URL?
     @Published private(set) var pageTitle: String = "Chess.com"
     @Published private(set) var errorMessage: String?
@@ -97,6 +95,18 @@ final class ChessComBrowser: NSObject, ObservableObject {
         }
     }
 
+    /// Called whenever the tab becomes visible. The web view lives in the view
+    /// hierarchy from launch and is never rebuilt, so showing it must not load
+    /// anything: it only needs the layout pass WebKit skips while hidden, a
+    /// repaint, and a fresh position from the probe.
+    func prepareForDisplay() {
+        if !hasStarted { startIfNeeded() }
+        webView.setNeedsLayout()
+        webView.layoutIfNeeded()
+        webView.setNeedsDisplay()
+        requestLiveSnapshot()
+    }
+
     /// Asks the injected probe for a snapshot without navigating or reloading.
     /// Used after the app returns from the background, where the page may have
     /// moved on while the app was suspended.
@@ -117,14 +127,6 @@ final class ChessComBrowser: NSObject, ObservableObject {
         observations.append(webView.observe(\.isLoading, options: [.new]) { [weak self] view, _ in
             let value = view.isLoading
             Task { @MainActor in self?.isLoading = value }
-        })
-        observations.append(webView.observe(\.canGoBack, options: [.new]) { [weak self] view, _ in
-            let value = view.canGoBack
-            Task { @MainActor in self?.canGoBack = value }
-        })
-        observations.append(webView.observe(\.canGoForward, options: [.new]) { [weak self] view, _ in
-            let value = view.canGoForward
-            Task { @MainActor in self?.canGoForward = value }
         })
         observations.append(webView.observe(\.url, options: [.new]) { [weak self] view, _ in
             let url = view.url
@@ -163,19 +165,6 @@ final class ChessComBrowser: NSObject, ObservableObject {
         }
     }
 
-    func goBack() {
-        if webView.canGoBack { webView.goBack() }
-    }
-
-    func goForward() {
-        if webView.canGoForward { webView.goForward() }
-    }
-
-    func openExternally() {
-        guard let url = webView.url else { return }
-        UIApplication.shared.open(url)
-    }
-
     /// Removes all Chess.com cookies and local storage for this app.
     func signOutAndClearData() {
         let dataStore = WKWebsiteDataStore.default()
@@ -209,12 +198,15 @@ final class ChessComBrowser: NSObject, ObservableObject {
 
     // MARK: - JavaScript dialogs
 
-    private func presentAlert(title: String, message: String, actions: [UIAlertAction]) {
-        guard let scene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }),
-            let window = scene.windows.first(where: { $0.isKeyWindow }),
-            let root = window.rootViewController else { return }
+    /// Shows a JavaScript dialog and reports whether it could be presented. A
+    /// page that waits for a dialog must never wait forever, so callers answer
+    /// the completion handler themselves when this returns `false`.
+    @discardableResult
+    private func presentAlert(title: String, message: String, actions: [UIAlertAction]) -> Bool {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let window = scenes.flatMap({ $0.windows }).first(where: { $0.isKeyWindow })
+                ?? scenes.first?.windows.first,
+              let root = window.rootViewController else { return false }
 
         var presenter = root
         while let presented = presenter.presentedViewController {
@@ -223,6 +215,7 @@ final class ChessComBrowser: NSObject, ObservableObject {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         actions.forEach { alert.addAction($0) }
         presenter.present(alert, animated: true)
+        return true
     }
 }
 
@@ -257,6 +250,15 @@ extension ChessComBrowser: WKNavigationDelegate {
         let nsError = error as NSError
         if nsError.code == NSURLErrorCancelled { return }
         errorMessage = error.localizedDescription
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // iOS reclaimed the web process, usually under memory pressure while
+        // the engine runs. Without this the tab would keep a blank page.
+        isLoading = false
+        errorMessage = nil
+        navigationCount += 1
+        webView.reload()
     }
 
     func webView(_ webView: WKWebView,
@@ -294,21 +296,23 @@ extension ChessComBrowser: WKUIDelegate {
                  runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping () -> Void) {
-        presentAlert(title: webView.title ?? "Chess.com",
-                     message: message,
-                     actions: [UIAlertAction(title: "OK", style: .default) { _ in completionHandler() }])
+        let shown = presentAlert(title: webView.title ?? "Chess.com",
+                                 message: message,
+                                 actions: [UIAlertAction(title: "OK", style: .default) { _ in completionHandler() }])
+        if !shown { completionHandler() }
     }
 
     func webView(_ webView: WKWebView,
                  runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping (Bool) -> Void) {
-        presentAlert(title: webView.title ?? "Chess.com",
-                     message: message,
-                     actions: [
-                        UIAlertAction(title: "Abbrechen", style: .cancel) { _ in completionHandler(false) },
-                        UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) }
-                     ])
+        let shown = presentAlert(title: webView.title ?? "Chess.com",
+                                 message: message,
+                                 actions: [
+                                    UIAlertAction(title: "Abbrechen", style: .cancel) { _ in completionHandler(false) },
+                                    UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) }
+                                 ])
+        if !shown { completionHandler(false) }
     }
 
     func webView(_ webView: WKWebView,
@@ -316,12 +320,13 @@ extension ChessComBrowser: WKUIDelegate {
                  defaultText: String?,
                  initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping (String?) -> Void) {
-        presentAlert(title: webView.title ?? "Chess.com",
-                     message: prompt,
-                     actions: [
-                        UIAlertAction(title: "Abbrechen", style: .cancel) { _ in completionHandler(nil) },
-                        UIAlertAction(title: "OK", style: .default) { _ in completionHandler(defaultText) }
-                     ])
+        let shown = presentAlert(title: webView.title ?? "Chess.com",
+                                 message: prompt,
+                                 actions: [
+                                    UIAlertAction(title: "Abbrechen", style: .cancel) { _ in completionHandler(nil) },
+                                    UIAlertAction(title: "OK", style: .default) { _ in completionHandler(defaultText) }
+                                 ])
+        if !shown { completionHandler(nil) }
     }
 }
 

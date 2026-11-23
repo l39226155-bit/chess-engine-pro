@@ -76,10 +76,6 @@ final class AnalysisManager: ObservableObject {
     @Published private(set) var liveBoardID: String?
     @Published private(set) var lastDetectedMoves: [String] = []
     @Published private(set) var lastDetectionOrigin: DetectionOrigin?
-    /// Set while a running online game must not be analysed (fair play).
-    @Published private(set) var engineBlockedReason: String?
-    /// Why the engine may run, e.g. "Analysebrett" or "Partie beendet".
-    @Published private(set) var liveContextLabel: String?
 
     // Preview (stepping through a variation)
     @Published private(set) var previewCandidate: CandidateMove?
@@ -189,17 +185,6 @@ final class AnalysisManager: ObservableObject {
         generation += 1
         let currentGeneration = generation
 
-        // Never calculate for a running online game, even when the analysis
-        // screen asks for it.
-        if let reason = engineBlockedReason {
-            engines.stop()
-            isAnalyzing = false
-            candidates = []
-            analysisProgress = 0
-            statusMessage = reason
-            return
-        }
-
         guard settings.settings.engineEnabled else {
             isAnalyzing = false
             candidates = []
@@ -302,9 +287,7 @@ final class AnalysisManager: ObservableObject {
     /// Receives a verified position detected on the Chess.com page.
     ///
     /// The synchroniser drops duplicated, stale and invalid updates; only a
-    /// newly accepted, valid position may touch the board or the engine. The
-    /// fair play policy decides whether the engine may run for this page at
-    /// all - a running online game is mirrored but never analysed.
+    /// newly accepted, valid position may touch the board or the engine.
     func ingest(_ detected: DetectedPosition,
                 sequence: Int? = nil,
                 session: String? = nil) {
@@ -351,11 +334,6 @@ final class AnalysisManager: ObservableObject {
 
         guard accepted, liveSync.validation.isValid else { return }
 
-        let permission = LiveAnalysisPolicy.permission(url: detected.url,
-                                                       isGameOver: detected.isGameOver)
-        liveContextLabel = permission.contextLabel
-        engineBlockedReason = permission.blockedReason
-
         clearPreview()
         // Results of the previous position must never stay on screen for the
         // new one, not even for the few milliseconds before the engine answers.
@@ -387,14 +365,6 @@ final class AnalysisManager: ObservableObject {
         lastDetectedMoves = Array(detected.moveList.suffix(6))
         statusMessage = nil
 
-        if let reason = engineBlockedReason {
-            // Fair play: cancel any running search, keep the mirrored board
-            // passive and explain why.
-            stop()
-            statusMessage = reason
-            return
-        }
-
         if settings.settings.engineEnabled && settings.settings.autoAnalyze {
             analyze(debounce: true, depthCap: liveDepthCap)
         } else {
@@ -403,10 +373,9 @@ final class AnalysisManager: ObservableObject {
         }
     }
 
-    /// Leaves the fair play guard because the board belongs to the user again.
-    private func releaseLiveGuard() {
-        engineBlockedReason = nil
-        liveContextLabel = nil
+    /// The board belongs to the user again: the next detected page counts as a
+    /// fresh board instead of an update of the mirrored game.
+    private func forgetDetectedBoard() {
         liveBoardID = nil
     }
 
@@ -495,7 +464,7 @@ final class AnalysisManager: ObservableObject {
 
     func play(_ move: Move) {
         guard board.isLegal(move) else { return }
-        releaseLiveGuard()
+        forgetDetectedBoard()
         clearPreview()
         let before = board
         let san = board.san(for: move)
@@ -534,7 +503,7 @@ final class AnalysisManager: ObservableObject {
 
     func reset() {
         clearPreview()
-        releaseLiveGuard()
+        forgetDetectedBoard()
         board = Board()
         history = []
         moveLog = []
@@ -551,7 +520,7 @@ final class AnalysisManager: ObservableObject {
 
     func setBoard(_ newBoard: Board) {
         clearPreview()
-        releaseLiveGuard()
+        forgetDetectedBoard()
         board = newBoard
         history = []
         moveLog = []
@@ -573,7 +542,7 @@ final class AnalysisManager: ObservableObject {
 
     func load(game: PGNGame) {
         clearPreview()
-        releaseLiveGuard()
+        forgetDetectedBoard()
         let startBoard = game.startBoard
         board = startBoard
         history = []

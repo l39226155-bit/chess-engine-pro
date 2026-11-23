@@ -28,7 +28,6 @@ struct ChessComPositionPayload: Equatable, Sendable {
     var session: String
     /// Monotonic counter from the page. Used to reject out of order updates.
     var sequence: Int
-    var url: String
     /// FEN placement field read from the board, ranks 8 to 1.
     var placement: String
     /// "w", "b" or empty when the page shows no turn indicator.
@@ -41,7 +40,6 @@ struct ChessComPositionPayload: Equatable, Sendable {
 
     init(session: String = "",
          sequence: Int = 0,
-         url: String = "",
          placement: String,
          sideToMove: String = "",
          moves: [String] = [],
@@ -50,7 +48,6 @@ struct ChessComPositionPayload: Equatable, Sendable {
          boardID: String = "") {
         self.session = session
         self.sequence = sequence
-        self.url = url
         self.placement = placement
         self.sideToMove = sideToMove
         self.moves = moves
@@ -63,7 +60,7 @@ struct ChessComPositionPayload: Equatable, Sendable {
 extension ChessComPositionPayload: Decodable {
 
     private enum CodingKeys: String, CodingKey {
-        case session, sequence, url, placement, sideToMove, moves
+        case session, sequence, placement, sideToMove, moves
         case userColor, isGameOver, boardID
     }
 
@@ -73,7 +70,6 @@ extension ChessComPositionPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         session = (try? container.decode(String.self, forKey: .session)) ?? ""
         sequence = (try? container.decode(Int.self, forKey: .sequence)) ?? 0
-        url = (try? container.decode(String.self, forKey: .url)) ?? ""
         placement = (try? container.decode(String.self, forKey: .placement)) ?? ""
         sideToMove = (try? container.decode(String.self, forKey: .sideToMove)) ?? ""
         moves = (try? container.decode([String].self, forKey: .moves)) ?? []
@@ -144,7 +140,6 @@ struct DetectedPosition: Equatable, Sendable {
     var isGameOver: Bool
     var userColor: PieceColor?
     var boardID: String
-    var url: String
     var origin: DetectionOrigin
     var validation: PositionValidation
     var confidence: FenConfidence
@@ -176,7 +171,6 @@ enum ChessComPositionDetector {
                                            isGameOver: payload.isGameOver,
                                            userColor: user,
                                            boardID: payload.boardID,
-                                           url: payload.url,
                                            origin: .history,
                                            validation: PositionValidation.validate(replayed.board),
                                            confidence: .exact)
@@ -193,7 +187,6 @@ enum ChessComPositionDetector {
                                           isGameOver: payload.isGameOver,
                                           userColor: user,
                                           boardID: payload.boardID,
-                                          url: payload.url,
                                           origin: .structure,
                                           validation: PositionValidation.validate(board),
                                           confidence: FenConfidence(sideToMove: turn != nil,

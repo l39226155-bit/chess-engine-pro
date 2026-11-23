@@ -27,11 +27,9 @@ final class ChessComDetectionTests: XCTestCase {
                          moves: [String] = [],
                          gameOver: Bool = false,
                          user: String? = nil,
-                         boardID: String = "game:1",
-                         url: String = "https://www.chess.com/analysis") -> ChessComPositionPayload {
+                         boardID: String = "game:1") -> ChessComPositionPayload {
         ChessComPositionPayload(session: "session-1",
                                 sequence: 1,
-                                url: url,
                                 placement: placement,
                                 sideToMove: side,
                                 moves: moves,
@@ -53,7 +51,6 @@ final class ChessComDetectionTests: XCTestCase {
         XCTAssertEqual(detected.board.castling.fen, "KQkq")
         XCTAssertEqual(detected.board.halfmoveClock, 0)
         XCTAssertEqual(detected.board.fullmoveNumber, 1)
-        XCTAssertEqual(detected.url, "https://www.chess.com/analysis")
     }
 
     func testStructuralFallbackReadsSideToMove() throws {

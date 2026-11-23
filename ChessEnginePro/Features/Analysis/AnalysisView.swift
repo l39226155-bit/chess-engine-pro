@@ -196,25 +196,6 @@ struct AnalysisView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            if let context = analysis.liveContextLabel, analysis.engineBlockedReason == nil {
-                Text("Engine freigegeben: \(context)")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Theme.accent)
-                    .lineLimit(1)
-            }
-
-            if let reason = analysis.engineBlockedReason {
-                HStack(alignment: .top, spacing: 5) {
-                    Image(systemName: "hand.raised.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Theme.warning)
-                    Text(reason)
-                        .font(.system(size: 9))
-                        .foregroundStyle(Theme.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
         }
         .premiumCard(padding: 12, radius: 14)
     }

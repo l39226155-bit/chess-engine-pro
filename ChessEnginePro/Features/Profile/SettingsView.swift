@@ -13,8 +13,10 @@ struct SettingsView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var analysis: AnalysisManager
+    @EnvironmentObject private var browser: ChessComBrowser
 
     @State private var showDeleteConfirm = false
+    @State private var showSessionDelete = false
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -271,10 +273,28 @@ struct SettingsView: View {
                 dismiss()
                 environment.selectedTab = .chessCom
             } label: {
-                Label("Chess.com-Sitzung verwalten", systemImage: "safari")
+                Label("Chess.com öffnen", systemImage: "crown.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(SecondaryButtonStyle(fullWidth: true))
+            DividerLine()
+            Button {
+                showSessionDelete = true
+            } label: {
+                Label("Chess.com-Sitzung löschen", systemImage: "rectangle.portrait.and.arrow.right")
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(Theme.error)
+            }
+            .buttonStyle(SecondaryButtonStyle(fullWidth: true))
+            .alert("Chess.com-Sitzung löschen?", isPresented: $showSessionDelete) {
+                Button("Löschen", role: .destructive) {
+                    browser.signOutAndClearData()
+                    environment.showToast("Sitzung gelöscht")
+                }
+                Button("Abbrechen", role: .cancel) {}
+            } message: {
+                Text("Cookies und lokale Daten von Chess.com werden von diesem Gerät entfernt und die Seite neu geladen.")
+            }
         }
         .premiumCard()
     }
