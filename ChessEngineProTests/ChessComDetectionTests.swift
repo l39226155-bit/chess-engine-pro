@@ -3,7 +3,7 @@
 //  CHESS ENGINE PRO
 //
 //  Tests for the Chess.com position detection: payload decoding, FEN building,
-//  move list verification and the structural fallback.
+//  move list verification, the structural fallback and its honesty markers.
 //
 
 import XCTest
@@ -27,10 +27,11 @@ final class ChessComDetectionTests: XCTestCase {
                          moves: [String] = [],
                          gameOver: Bool = false,
                          user: String? = nil,
-                         boardID: String = "game:1") -> ChessComPositionPayload {
+                         boardID: String = "game:1",
+                         url: String = "https://www.chess.com/analysis") -> ChessComPositionPayload {
         ChessComPositionPayload(session: "session-1",
                                 sequence: 1,
-                                url: "https://www.chess.com/game/live/1",
+                                url: url,
                                 placement: placement,
                                 sideToMove: side,
                                 moves: moves,
@@ -52,6 +53,7 @@ final class ChessComDetectionTests: XCTestCase {
         XCTAssertEqual(detected.board.castling.fen, "KQkq")
         XCTAssertEqual(detected.board.halfmoveClock, 0)
         XCTAssertEqual(detected.board.fullmoveNumber, 1)
+        XCTAssertEqual(detected.url, "https://www.chess.com/analysis")
     }
 
     func testStructuralFallbackReadsSideToMove() throws {
@@ -63,7 +65,40 @@ final class ChessComDetectionTests: XCTestCase {
         XCTAssertTrue(detected.validation.isValid)
     }
 
-    // MARK: - Move list verification
+    // MARK: - Honesty of the fallback
+
+    func testStructuralFallbackNeverClaimsExactCounters() throws {
+        let detected = try XCTUnwrap(ChessComPositionDetector.detect(
+            payload(placement: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR", side: "b")
+        ))
+
+        XCTAssertTrue(detected.confidence.sideToMove)
+        XCTAssertFalse(detected.confidence.castling)
+        XCTAssertFalse(detected.confidence.isExact)
+        XCTAssertTrue(detected.confidence.estimatedFields.contains("Rochaderechte"))
+        XCTAssertTrue(detected.confidence.estimatedFields.contains("En-passant-Feld"))
+        XCTAssertTrue(detected.confidence.estimatedFields.contains("Halbzugzähler"))
+        XCTAssertTrue(detected.confidence.note.contains("Geschätzt"))
+    }
+
+    func testVerifiedHistoryIsMarkedExact() throws {
+        let moves = ["e4", "e5", "Nf3"]
+        let expected = replay(moves)
+        let detected = try XCTUnwrap(ChessComPositionDetector.detect(
+            payload(placement: ChessComPositionDetector.placementString(expected.board),
+                    side: "b",
+                    moves: moves)
+        ))
+
+        XCTAssertEqual(detected.origin, .history)
+        XCTAssertEqual(detected.confidence, .exact)
+        XCTAssertTrue(detected.confidence.isExact)
+        XCTAssertEqual(detected.confidence.note, "FEN vollständig verifiziert")
+        // Halfmove clock after e4 (0), e5 (0) and Nf3 (1): exact, not guessed.
+        XCTAssertEqual(detected.board.halfmoveClock, 1)
+        XCTAssertEqual(detected.board.fullmoveNumber, 2)
+        XCTAssertNil(detected.board.enPassant)
+    }
 
     func testMoveListProducesExactCountersAndRights() throws {
         let moves = ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "O-O"]
@@ -100,6 +135,7 @@ final class ChessComDetectionTests: XCTestCase {
         XCTAssertEqual(detected.origin, .history)
         XCTAssertEqual(detected.board.enPassant?.name, "d6")
         XCTAssertEqual(detected.board.fen, expected.board.fen)
+        XCTAssertTrue(detected.confidence.enPassant)
     }
 
     func testMismatchedMoveListFallsBackToBoard() throws {
@@ -111,6 +147,15 @@ final class ChessComDetectionTests: XCTestCase {
 
         XCTAssertEqual(detected.origin, .structure)
         XCTAssertTrue(detected.validation.isValid)
+        XCTAssertFalse(detected.confidence.isExact)
+    }
+
+    func testMissingTurnIndicatorIsReportedAsEstimatedSideToMove() throws {
+        let detected = try XCTUnwrap(ChessComPositionDetector.detect(
+            payload(placement: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", side: "")
+        ))
+        XCTAssertFalse(detected.confidence.sideToMove)
+        XCTAssertTrue(detected.confidence.estimatedFields.contains("Zugrecht"))
     }
 
     func testStructuralCastlingInference() throws {
@@ -142,6 +187,26 @@ final class ChessComDetectionTests: XCTestCase {
         XCTAssertNil(ChessComPositionDetector.detect(payload(placement: "", side: "w")))
     }
 
+    func testUnreadablePlacementIsIgnored() {
+        XCTAssertNil(ChessComPositionDetector.detect(payload(placement: "9/8/8/8/8/8/8/8", side: "w")))
+    }
+
+    func testNinePawnsAreRejected() throws {
+        let detected = try XCTUnwrap(ChessComPositionDetector.detect(
+            payload(placement: "7k/8/8/8/PPPPPPPP/PPPPPP2/8/K7", side: "w")
+        ))
+        XCTAssertFalse(detected.validation.isValid)
+        XCTAssertTrue(detected.validation.issues.contains(.pieceCount))
+    }
+
+    func testAdjacentKingsAreRejected() throws {
+        let detected = try XCTUnwrap(ChessComPositionDetector.detect(
+            payload(placement: "8/8/8/8/8/8/8/KK6", side: "w")
+        ))
+        XCTAssertFalse(detected.validation.isValid)
+        XCTAssertTrue(detected.validation.issues.contains(.kingsAdjacent))
+    }
+
     // MARK: - Decoding
 
     func testDecodingToleratesMissingFields() throws {
@@ -152,5 +217,6 @@ final class ChessComDetectionTests: XCTestCase {
         XCTAssertTrue(decoded.moves.isEmpty)
         XCTAssertTrue(decoded.sideToMove.isEmpty)
         XCTAssertNil(decoded.userColor)
+        XCTAssertEqual(decoded.boardID, "")
     }
 }

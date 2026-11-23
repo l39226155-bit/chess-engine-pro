@@ -49,6 +49,8 @@ struct PositionValidation: Equatable, Sendable {
         case pawnOnBackRank
         case opponentInCheck
         case enPassantMismatch
+        case pieceCount
+        case kingsAdjacent
 
         var localizedDescription: String {
             switch self {
@@ -58,6 +60,8 @@ struct PositionValidation: Equatable, Sendable {
             case .pawnOnBackRank: return "Bauer auf der Grundreihe"
             case .opponentInCheck: return "Gegner steht im Schach"
             case .enPassantMismatch: return "En-passant-Feld inkonsistent"
+            case .pieceCount: return "Unmögliche Figurenzahl"
+            case .kingsAdjacent: return "Könige stehen nebeneinander"
             }
         }
     }
@@ -88,6 +92,23 @@ struct PositionValidation: Equatable, Sendable {
 
         if board.allPieces.contains(where: { $0.piece.kind == .pawn && ($0.square.rank == 0 || $0.square.rank == 7) }) {
             issues.append(.pawnOnBackRank)
+        }
+
+        // A garbled extraction (wrong square classes, mixed up boards) usually
+        // shows up as an impossible material count, so it is checked here as
+        // well. Promotions are legal, therefore only pawns are capped at eight.
+        for color in PieceColor.allCases {
+            let own = board.pieces(for: color)
+            if own.count > 16 || own.filter({ $0.piece.kind == .pawn }).count > 8 {
+                if !issues.contains(.pieceCount) { issues.append(.pieceCount) }
+            }
+        }
+
+        if let whiteKing = board.kingSquare(for: .white),
+           let blackKing = board.kingSquare(for: .black),
+           abs(whiteKing.file - blackKing.file) <= 1,
+           abs(whiteKing.rank - blackKing.rank) <= 1 {
+            issues.append(.kingsAdjacent)
         }
 
         // The side that just moved may not be in check.
@@ -156,20 +177,6 @@ enum SyncEventKind: String, Equatable, Sendable {
         }
     }
 
-    var sfSymbol: String {
-        switch self {
-        case .newGame: return "flag.checkered"
-        case .whiteMove: return "circle.fill"
-        case .blackMove: return "circle"
-        case .opponentMove: return "person.fill"
-        case .gameOver: return "flag.fill"
-        case .reset: return "arrow.counterclockwise"
-        case .positionLoaded: return "square.and.arrow.down"
-        case .edit: return "square.and.pencil"
-        case .undo: return "arrow.uturn.backward"
-        case .jump: return "arrow.left.arrow.right"
-        }
-    }
 }
 
 struct PositionEvent: Equatable, Sendable, Identifiable {
@@ -242,6 +249,8 @@ struct PositionSnapshot: Equatable, Identifiable, Sendable {
     var version: Int
     var source: PositionSource
     var eventKind: SyncEventKind
+    /// Which FEN fields are verified rather than inferred.
+    var confidence: FenConfidence = .exact
 
     var id: String { fen + "#" + String(version) }
 }
@@ -273,7 +282,8 @@ final class LivePositionSync {
                  externalVersion: Int? = nil,
                  explicitEvent: SyncEventKind? = nil,
                  userColor: PieceColor? = nil,
-                 gameOverOverride: Bool? = nil) -> Bool {
+                 gameOverOverride: Bool? = nil,
+                 confidence: FenConfidence = .exact) -> Bool {
         receivedCount += 1
         stats.received += 1
 
@@ -332,7 +342,8 @@ final class LivePositionSync {
                                     reason: reason,
                                     version: version,
                                     source: source,
-                                    eventKind: event)
+                                    eventKind: event,
+                                    confidence: confidence)
         changeCount += 1
         stats.accepted += 1
         events.append(PositionEvent(version: version,

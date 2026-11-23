@@ -110,6 +110,9 @@ struct AnalysisView: View {
                 if let event = analysis.liveEvent {
                     Pill(text: event.kind.localizedTitle, color: Theme.secondaryText)
                 }
+                if let origin = analysis.lastDetectionOrigin, analysis.liveSource == .chessCom {
+                    Pill(text: origin.localizedTitle, color: Theme.secondaryText)
+                }
                 Spacer(minLength: 0)
                 if let snapshot = analysis.liveSnapshot {
                     Text("POSITION v\(snapshot.version)")
@@ -180,6 +183,37 @@ struct AnalysisView: View {
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
+            }
+
+            if let snapshot = analysis.liveSnapshot, !snapshot.confidence.isExact {
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.warning)
+                    Text(snapshot.confidence.note)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if let context = analysis.liveContextLabel, analysis.engineBlockedReason == nil {
+                Text("Engine freigegeben: \(context)")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.accent)
+                    .lineLimit(1)
+            }
+
+            if let reason = analysis.engineBlockedReason {
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.warning)
+                    Text(reason)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .premiumCard(padding: 12, radius: 14)

@@ -35,9 +35,9 @@ final class ChessComBrowser: NSObject, ObservableObject {
 
     // Live position detection
     @Published private(set) var detectionCount: Int = 0
-    @Published private(set) var lastDetectionDate: Date?
-    @Published private(set) var livePly: Int = 0
-    @Published private(set) var liveStatusText: String = ""
+    /// Counts page loads requested by the user. Used by the tests as evidence
+    /// that switching tabs never reloads the page.
+    @Published private(set) var navigationCount: Int = 0
 
     /// Called for every new snapshot the page posts (already de-duplicated in
     /// JavaScript). The payload is not yet verified - that happens in the
@@ -142,6 +142,7 @@ final class ChessComBrowser: NSObject, ObservableObject {
 
     func load(_ url: URL) {
         errorMessage = nil
+        navigationCount += 1
         webView.load(URLRequest(url: url))
     }
 
@@ -203,15 +204,6 @@ final class ChessComBrowser: NSObject, ObservableObject {
 
     fileprivate func handlePositionPayload(_ payload: ChessComPositionPayload) {
         detectionCount += 1
-        lastDetectionDate = Date()
-        livePly = payload.moves.count
-        if payload.isGameOver {
-            liveStatusText = "Partie beendet"
-        } else if let last = payload.moves.last {
-            liveStatusText = "Letzter Zug \(last)"
-        } else {
-            liveStatusText = "Stellung erkannt"
-        }
         onPositionPayload?(payload)
     }
 

@@ -95,9 +95,14 @@ struct PlayView: View {
     }
 
     private var liveDetail: String {
+        if let reason = analysis.engineBlockedReason {
+            return reason
+        }
         if analysis.liveSource == .chessCom, let snapshot = analysis.liveSnapshot {
             let event = analysis.liveEvent?.kind.localizedTitle ?? "Stellung erkannt"
-            return "\(event) · Zug \(snapshot.ply) · \(snapshot.statusText)"
+            let context = analysis.liveContextLabel.map { " · \($0)" } ?? ""
+            let estimated = snapshot.confidence.isExact ? "" : " · teilweise geschätzt"
+            return "\(event) · Zug \(snapshot.ply) · \(snapshot.statusText)\(context)\(estimated)"
         }
         if browser.detectionCount > 0 {
             return "\(browser.detectionCount) Messungen · noch keine gültige Stellung"

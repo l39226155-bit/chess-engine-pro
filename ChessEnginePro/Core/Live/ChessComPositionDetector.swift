@@ -2,21 +2,20 @@
 //  ChessComPositionDetector.swift
 //  CHESS ENGINE PRO
 //
-//  Turns a payload read from the rendered Chess.com board into a verified
-//  position. The app only reads what the page already displays (piece elements
-//  and the visible move list); no private endpoint and no page internals are
-//  used.
+//  Turns a payload read from the rendered Chess.com board into a position. The
+//  app only reads what the page already displays (piece elements and the
+//  visible move list); no private endpoint and no page internals are used.
 //
 //  Two independent paths are evaluated for every payload:
 //
 //  1. History replay - the visible SAN move list is replayed with the app's own
 //     rules engine. When the resulting placement matches the detected board and
 //     every visible move was legal, the position is authoritative: castling
-//     rights, en passant square and both move counters are exact.
+//     rights, en passant square, halfmove clock and move number are exact.
 //  2. Structural - the 64 squares are taken as truth, the side to move comes
 //     from the clock indicator and castling rights are derived from king/rook
-//     placement. This path is used when the move list is virtualised or does
-//     not replay cleanly; it is marked as such in the UI.
+//     placement. Castling, en passant, both counters and the ply count are
+//     marked as inferred, never as verified.
 //
 
 import Foundation
@@ -39,8 +38,6 @@ struct ChessComPositionPayload: Equatable, Sendable {
     var userColor: String?
     var isGameOver: Bool
     var boardID: String
-    var orientation: String
-    var capturedAt: Double
 
     init(session: String = "",
          sequence: Int = 0,
@@ -50,9 +47,7 @@ struct ChessComPositionPayload: Equatable, Sendable {
          moves: [String] = [],
          userColor: String? = nil,
          isGameOver: Bool = false,
-         boardID: String = "",
-         orientation: String = "white",
-         capturedAt: Double = 0) {
+         boardID: String = "") {
         self.session = session
         self.sequence = sequence
         self.url = url
@@ -62,8 +57,6 @@ struct ChessComPositionPayload: Equatable, Sendable {
         self.userColor = userColor
         self.isGameOver = isGameOver
         self.boardID = boardID
-        self.orientation = orientation
-        self.capturedAt = capturedAt
     }
 }
 
@@ -71,7 +64,7 @@ extension ChessComPositionPayload: Decodable {
 
     private enum CodingKeys: String, CodingKey {
         case session, sequence, url, placement, sideToMove, moves
-        case userColor, isGameOver, boardID, orientation, capturedAt
+        case userColor, isGameOver, boardID
     }
 
     /// Every field is optional on the wire so a page update can never crash the
@@ -87,8 +80,6 @@ extension ChessComPositionPayload: Decodable {
         userColor = try? container.decode(String.self, forKey: .userColor)
         isGameOver = (try? container.decode(Bool.self, forKey: .isGameOver)) ?? false
         boardID = (try? container.decode(String.self, forKey: .boardID)) ?? ""
-        orientation = (try? container.decode(String.self, forKey: .orientation)) ?? "white"
-        capturedAt = (try? container.decode(Double.self, forKey: .capturedAt)) ?? 0
     }
 }
 
@@ -106,6 +97,45 @@ enum DetectionOrigin: String, Equatable, Sendable {
     }
 }
 
+/// Which parts of the produced FEN are verified and which are only inferred.
+/// The interface must show this honestly: an inferred field is a best guess,
+/// never a fact.
+struct FenConfidence: Equatable, Sendable {
+    var sideToMove: Bool
+    var castling: Bool
+    var enPassant: Bool
+    var halfmove: Bool
+    var ply: Bool
+
+    static let exact = FenConfidence(sideToMove: true,
+                                     castling: true,
+                                     enPassant: true,
+                                     halfmove: true,
+                                     ply: true)
+    static let inferred = FenConfidence(sideToMove: false,
+                                        castling: false,
+                                        enPassant: false,
+                                        halfmove: false,
+                                        ply: false)
+
+    var isExact: Bool { sideToMove && castling && enPassant && halfmove && ply }
+
+    var estimatedFields: [String] {
+        var fields: [String] = []
+        if !sideToMove { fields.append("Zugrecht") }
+        if !castling { fields.append("Rochaderechte") }
+        if !enPassant { fields.append("En-passant-Feld") }
+        if !halfmove { fields.append("Halbzugzähler") }
+        if !ply { fields.append("Zugnummer") }
+        return fields
+    }
+
+    var note: String {
+        if isExact { return "FEN vollständig verifiziert" }
+        return "Geschätzt: " + estimatedFields.joined(separator: ", ")
+    }
+}
+
 struct DetectedPosition: Equatable, Sendable {
     var board: Board
     var moveList: [String]
@@ -114,11 +144,10 @@ struct DetectedPosition: Equatable, Sendable {
     var isGameOver: Bool
     var userColor: PieceColor?
     var boardID: String
+    var url: String
     var origin: DetectionOrigin
     var validation: PositionValidation
-
-    var fen: String { board.fen }
-    var ply: Int { uciMoves.count }
+    var confidence: FenConfidence
 }
 
 // MARK: - Detector
@@ -147,15 +176,16 @@ enum ChessComPositionDetector {
                                            isGameOver: payload.isGameOver,
                                            userColor: user,
                                            boardID: payload.boardID,
+                                           url: payload.url,
                                            origin: .history,
-                                           validation: PositionValidation.validate(replayed.board))
+                                           validation: PositionValidation.validate(replayed.board),
+                                           confidence: .exact)
             }
         }
 
         var structural: DetectedPosition?
         if let board = structuralBoard(placement: placement,
-                                      sideToMove: turn ?? .white,
-                                      ply: payload.moves.count) {
+                                      sideToMove: turn ?? .white) {
             structural = DetectedPosition(board: board,
                                           moveList: payload.moves,
                                           uciMoves: [],
@@ -163,8 +193,14 @@ enum ChessComPositionDetector {
                                           isGameOver: payload.isGameOver,
                                           userColor: user,
                                           boardID: payload.boardID,
+                                          url: payload.url,
                                           origin: .structure,
-                                          validation: PositionValidation.validate(board))
+                                          validation: PositionValidation.validate(board),
+                                          confidence: FenConfidence(sideToMove: turn != nil,
+                                                                    castling: false,
+                                                                    enPassant: false,
+                                                                    halfmove: false,
+                                                                    ply: false))
         }
 
         if let history = history, history.validation.isValid { return history }
@@ -192,20 +228,21 @@ enum ChessComPositionDetector {
 
     // MARK: - Structural fallback
 
+    /// The board alone cannot prove castling rights, en passant, the halfmove
+    /// clock or the move number. This builder therefore uses neutral counters
+    /// and marks every one of those fields as inferred.
     static func structuralBoard(placement: String,
-                                sideToMove: PieceColor,
-                                ply: Int) -> Board? {
+                                sideToMove: PieceColor) -> Board? {
         let side = sideToMove == .white ? "w" : "b"
-        let fullmove = max(1, ply / 2 + 1)
-        guard var board = Board(fen: "\(placement) \(side) - - 0 \(fullmove)") else { return nil }
+        guard var board = Board(fen: "\(placement) \(side) - - 0 1") else { return nil }
         board.castling = inferredCastling(for: board)
         return board
     }
 
     /// Conservative castling detection: a right is kept only while king and
     /// rook still stand on their original squares. Because the board alone
-    /// cannot tell whether a rook already moved away and back, this is the
-    /// fallback path and is labelled accordingly in the interface.
+    /// cannot tell whether a rook already moved away and back, the result is
+    /// reported as inferred.
     static func inferredCastling(for board: Board) -> CastlingRights {
         var rights = CastlingRights.none
 

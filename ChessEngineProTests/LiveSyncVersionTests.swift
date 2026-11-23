@@ -2,8 +2,8 @@
 //  LiveSyncVersionTests.swift
 //  CHESS ENGINE PRO
 //
-//  Tests for versioning, duplicate and stale handling and for the event
-//  classification of the live position pipeline.
+//  Tests for versioning, duplicate and stale handling, event classification and
+//  the honesty markers of the live position pipeline.
 //
 
 import XCTest
@@ -74,6 +74,63 @@ final class LiveSyncVersionTests: XCTestCase {
         XCTAssertEqual(sync.version, 12)
     }
 
+    func testRapidMoveSequenceKeepsEveryPositionExactlyOnce() throws {
+        let sync = LivePositionSync()
+        let sans = ["e4", "e5", "Nf3", "Nc6", "Bc4"]
+        var board = Board()
+        var history: [String] = []
+
+        for (index, san) in sans.enumerated() {
+            let origin = try XCTUnwrap(board.legalMoves.first { board.san(for: $0) == san },
+                                       "Zug \(san) nicht gefunden")
+            history.append(san)
+            board.apply(origin)
+            XCTAssertTrue(sync.publish(board: board,
+                                       lastMove: origin,
+                                       sanHistory: history,
+                                       reason: .detected,
+                                       externalVersion: index + 1),
+                          "Zug \(san) wurde verworfen")
+        }
+
+        XCTAssertEqual(sync.version, 5)
+        XCTAssertEqual(sync.snapshot?.ply, 5)
+        XCTAssertEqual(sync.snapshot?.sanHistory, sans)
+        XCTAssertEqual(sync.stats.accepted, 5)
+        XCTAssertEqual(sync.stats.duplicates, 0)
+        XCTAssertEqual(sync.stats.stale, 0)
+        XCTAssertEqual(sync.events.map { $0.kind }, [.whiteMove, .blackMove, .whiteMove, .blackMove, .whiteMove])
+    }
+
+    func testOutOfOrderUpdateCannotRewindTheBoard() throws {
+        let sync = LivePositionSync()
+        var board = Board()
+        var history: [String] = []
+        var snapshots: [Board] = [board]
+
+        for (index, (from, to)) in [("e2", "e4"), ("e7", "e5"), ("g1", "f3")].enumerated() {
+            let step = try play(board, from, to)
+            history.append(board.san(for: step.move))
+            board = step.board
+            snapshots.append(board)
+            XCTAssertTrue(sync.publish(board: board,
+                                       lastMove: step.move,
+                                       sanHistory: history,
+                                       reason: .detected,
+                                       externalVersion: index + 1))
+        }
+
+        // Late update of ply 2 with the matching old version number.
+        XCTAssertFalse(sync.publish(board: snapshots[2],
+                                    lastMove: nil,
+                                    sanHistory: Array(history.prefix(2)),
+                                    reason: .detected,
+                                    externalVersion: 2))
+        XCTAssertEqual(sync.stats.stale, 1)
+        XCTAssertEqual(sync.snapshot?.ply, 3)
+        XCTAssertEqual(sync.snapshot?.fen, board.fen)
+    }
+
     func testDuplicatesAreCountedSeparatelyFromRejections() {
         let sync = LivePositionSync()
         let start = Board()
@@ -94,6 +151,28 @@ final class LiveSyncVersionTests: XCTestCase {
         XCTAssertEqual(sync.stats.rejected, 1)
         XCTAssertEqual(sync.stats.accepted, 0)
         XCTAssertNil(sync.snapshot)
+    }
+
+    func testInvalidPositionNeverReplacesThePreviousSnapshot() {
+        let sync = LivePositionSync()
+        let start = Board()
+        XCTAssertTrue(sync.publish(board: start, lastMove: nil, sanHistory: [], reason: .edit))
+
+        XCTAssertFalse(sync.publish(board: Board.empty, lastMove: nil, sanHistory: [], reason: .detected))
+        XCTAssertEqual(sync.snapshot?.fen, start.fen)
+        XCTAssertEqual(sync.stats.rejected, 1)
+        XCTAssertEqual(sync.changeCount, 1)
+    }
+
+    func testInferredConfidenceIsVisibleInTheSnapshot() {
+        let sync = LivePositionSync()
+        XCTAssertTrue(sync.publish(board: Board(),
+                                   lastMove: nil,
+                                   sanHistory: [],
+                                   reason: .detected,
+                                   confidence: .inferred))
+        XCTAssertEqual(sync.snapshot?.confidence, .inferred)
+        XCTAssertEqual(sync.snapshot?.confidence.isExact, false)
     }
 
     // MARK: - Events
@@ -170,6 +249,25 @@ final class LiveSyncVersionTests: XCTestCase {
                                    reason: .detected))
         XCTAssertEqual(sync.snapshot?.eventKind, .gameOver)
         XCTAssertEqual(sync.snapshot?.isGameOver, true)
+    }
+
+    func testUndoImportAndResetEvents() throws {
+        let sync = LivePositionSync()
+        let start = Board()
+        let step = try play(start, "e2", "e4")
+        sync.publish(board: step.board, lastMove: step.move, sanHistory: ["e4"], reason: .move)
+
+        XCTAssertTrue(sync.publish(board: start, lastMove: nil, sanHistory: [], reason: .undo))
+
+        let knight = try play(start, "g1", "f3")
+        XCTAssertTrue(sync.publish(board: knight.board,
+                                   lastMove: knight.move,
+                                   sanHistory: ["Nf3"],
+                                   reason: .imported))
+
+        XCTAssertTrue(sync.publish(board: start, lastMove: nil, sanHistory: [], reason: .reset))
+
+        XCTAssertEqual(sync.events.map { $0.kind }, [.whiteMove, .undo, .positionLoaded, .reset])
     }
 
     func testEventLogKeepsTheLatestVersion() throws {

@@ -266,6 +266,19 @@ Alternative und interessanter Variante – jeweils mit Bewertung, Qualität und
 einer aus den Zugeigenschaften abgeleiteten Begründung (`StrategicExplainer`).
 Die Pfeile der Varianten werden animiert auf das Brett gezeichnet.
 
+**Fair Play.** Die Engine läuft nur dort, wo Hilfe erlaubt ist
+(`LiveAnalysisPolicy`): Analysebrett, Puzzles, Training und Partien gegen den
+Computer. Eine laufende Online-Partie auf Chess.com wird gespiegelt, aber nicht
+analysiert; der Stockfish-Tab nennt den Grund und startet auch auf Anforderung
+nicht. Erst das Partieende oder das eigene Brett (`releaseLiveGuard`) gibt die
+Engine wieder frei.
+
+**Ehrliche FEN.** Der Fallback kennzeichnet in `FenConfidence`, welche Felder
+verifiziert sind. Zugrecht ohne Uhr, Rochaderechte, En-passant-Feld,
+Halbzugzähler und Zugnummer gelten dort als geschätzt und werden im UI als
+„Geschätzt: …" ausgewiesen. Nur die verifizierte Zugliste liefert eine
+vollständig geprüfte FEN.
+
 **Grenze.** Die Erkennung hängt an der gerenderten DOM-Struktur von Chess.com.
 Ändert Chess.com seine Markup-Klassen oder rendert ein Brett ausschließlich auf
 Canvas, findet die Sonde keine Stellung; die App zeigt dann „noch keine gültige
@@ -282,4 +295,37 @@ Umgebung ohne iPhone nicht möglich.
 
 ## 8. Version
 
-`2.0.0` (Build 3) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+`2.1.0` (Build 4) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+---
+
+## 9. Qualitätsprüfung (v2.1)
+
+**Automatisch geprüft (GitHub Actions, iOS-Simulator):**
+
+| Bereich | Test |
+| --- | --- |
+| FEN-Aufbau, Zuglisten-Verifikation, Halbzug-/Vollzugzähler, En passant, Rochade | `ChessComDetectionTests` |
+| Fallback-Markierung als geschätzt (Zugrecht, Rochade, En passant, Zähler) | `ChessComDetectionTests` |
+| Plausibilität: Königszahl, Bauern auf der Grundlinie, Figurenzahl, benachbarte Könige, unlesbare FEN | `ChessComDetectionTests`, `LiveSyncTests` |
+| Versionierung, schnelle Zugfolgen, veraltete/doppelte Updates, Undo/Import/Reset, Ereignisse | `LiveSyncVersionTests` |
+| Fair-Play-Gate (Analyse/Training/Computer erlaubt, laufende Online-Partie gesperrt) | `LiveAnalysisPolicyTests`, `AnalysisManagerLiveTests` |
+| Nur gültige Stellungen erreichen Brett und Engine; schnelle Züge analysieren nur die letzte Stellung; Reload-Rebase | `AnalysisManagerLiveTests` |
+| WebView lädt genau einmal, Tabwechsel/Snapshot/Session-Refresh navigieren nicht | `ChessComBrowserLifecycleTests` |
+| Regeln, Perft, SAN/PGN, Engine-Bridge, Speicherung | `ChessCoreTests`, `EngineTests` |
+
+**Nicht geprüft – benötigt ein echtes iPhone:**
+
+* Die DOM-Selektoren auf der echten Chess.com-Seite (`.piece`, `square-NN`,
+  `.node`, Uhr-Indikator, Partieende-Banner). Die Erkennung ist **nicht** gegen
+  die Live-Seite getestet; sie kann dort fehlschlagen oder eine Stellung
+  ablehnen.
+* WKWebView-Persistenz über echte Tabwechsel: Login, Cookies, Scrollposition und
+  laufende Partie auf dem Gerät.
+* Signierung/Sideloading und der Chess.com-Login im WebView.
+* Stockfish-Laufzeit auf dem Gerät (CPU-Last, Wärme, Hintergrundverhalten).
+* Darstellung der neuen Karten, Pfeile und Animationen auf dem Gerät.
+
+**Bekannte Grenzen:** Canvas-only-Boards oder geänderte Chess.com-Klassen
+liefern keine Stellung; virtuelle Zuglisten ohne SAN führen zum Brett-Fallback
+mit „geschätzt". Laufende Online-Partien sind absichtlich von der Engine
+ausgenommen.

@@ -75,9 +75,11 @@ final class AnalysisManager: ObservableObject {
     @Published private(set) var syncStats = SyncStatistics()
     @Published private(set) var liveBoardID: String?
     @Published private(set) var lastDetectedMoves: [String] = []
-    @Published private(set) var detectionCount: Int = 0
-    @Published private(set) var lastDetectionDate: Date?
     @Published private(set) var lastDetectionOrigin: DetectionOrigin?
+    /// Set while a running online game must not be analysed (fair play).
+    @Published private(set) var engineBlockedReason: String?
+    /// Why the engine may run, e.g. "Analysebrett" or "Partie beendet".
+    @Published private(set) var liveContextLabel: String?
 
     // Preview (stepping through a variation)
     @Published private(set) var previewCandidate: CandidateMove?
@@ -187,6 +189,17 @@ final class AnalysisManager: ObservableObject {
         generation += 1
         let currentGeneration = generation
 
+        // Never calculate for a running online game, even when the analysis
+        // screen asks for it.
+        if let reason = engineBlockedReason {
+            engines.stop()
+            isAnalyzing = false
+            candidates = []
+            analysisProgress = 0
+            statusMessage = reason
+            return
+        }
+
         guard settings.settings.engineEnabled else {
             isAnalyzing = false
             candidates = []
@@ -242,6 +255,9 @@ final class AnalysisManager: ObservableObject {
     func stop() {
         analysisTask?.cancel()
         analysisTask = nil
+        // Invalidate any update that is already in flight, so a cancelled
+        // search can never publish results for a position that is gone.
+        generation += 1
         engines.stop()
         isAnalyzing = false
         analysisProgress = 0
@@ -285,15 +301,13 @@ final class AnalysisManager: ObservableObject {
 
     /// Receives a verified position detected on the Chess.com page.
     ///
-    /// The synchroniser drops duplicated, stale and invalid updates. A new valid
-    /// position becomes the analysis board, is mirrored into the move list and
-    /// restarts Stockfish immediately - the running search is cancelled first,
-    /// the engine process itself is reused.
+    /// The synchroniser drops duplicated, stale and invalid updates; only a
+    /// newly accepted, valid position may touch the board or the engine. The
+    /// fair play policy decides whether the engine may run for this page at
+    /// all - a running online game is mirrored but never analysed.
     func ingest(_ detected: DetectedPosition,
                 sequence: Int? = nil,
                 session: String? = nil) {
-        detectionCount += 1
-        lastDetectionDate = Date()
         lastDetectionOrigin = detected.origin
 
         let sessionChanged = session != nil && session != liveSession
@@ -304,7 +318,7 @@ final class AnalysisManager: ObservableObject {
             // The page restarts its counter after a reload. Rebase it onto the
             // synchroniser's version so the sequence stays strictly monotonic
             // while late payloads from the old page are still rejected.
-            if sessionChanged || sequence < lastPayloadSequence {
+            if sessionChanged || (session == nil && sequence < lastPayloadSequence) {
                 externalBase = liveSync.version
                 lastPayloadSequence = 0
             }
@@ -316,32 +330,43 @@ final class AnalysisManager: ObservableObject {
         let explicit: SyncEventKind? = boardChanged
             ? (detected.moveList.isEmpty ? .newGame : .positionLoaded)
             : nil
-        let previousFen = liveSnapshot?.fen
 
-        _ = liveSync.publish(board: detected.board,
-                             lastMove: detected.lastMove,
-                             sanHistory: detected.moveList,
-                             reason: .detected,
-                             source: .chessCom,
-                             externalVersion: incomingSequence,
-                             explicitEvent: explicit,
-                             userColor: detected.userColor,
-                             gameOverOverride: detected.isGameOver)
+        let accepted = liveSync.publish(board: detected.board,
+                                        lastMove: detected.lastMove,
+                                        sanHistory: detected.moveList,
+                                        reason: .detected,
+                                        source: .chessCom,
+                                        externalVersion: incomingSequence,
+                                        explicitEvent: explicit,
+                                        userColor: detected.userColor,
+                                        gameOverOverride: detected.isGameOver,
+                                        confidence: detected.confidence)
 
         liveSnapshot = liveSync.snapshot
         liveValidation = liveSync.validation
         liveChangeCount = liveSync.changeCount
         syncStats = liveSync.stats
         liveEvent = liveSync.events.last
-        liveSource = .chessCom
+        liveSource = liveSync.snapshot?.source ?? liveSource
 
-        guard liveSync.validation.isValid,
-              liveSource == .chessCom,
-              liveSync.snapshot?.fen != previousFen else { return }
+        guard accepted, liveSync.validation.isValid else { return }
+
+        let permission = LiveAnalysisPolicy.permission(url: detected.url,
+                                                       isGameOver: detected.isGameOver)
+        liveContextLabel = permission.contextLabel
+        engineBlockedReason = permission.blockedReason
 
         clearPreview()
-        // Rebuild the local history from the verified move list so undo, jump
-        // and the move list chips keep working on a mirrored game.
+        // Results of the previous position must never stay on screen for the
+        // new one, not even for the few milliseconds before the engine answers.
+        candidates = []
+        evaluation = .zero
+        depth = 0
+        seldepth = 0
+        nodes = 0
+        analysisProgress = 0
+        // Rebuild the local history from the verified move list so jump and the
+        // move list chips keep working on a mirrored game.
         var rebuilt: [HistoryEntry] = []
         var walker = Board()
         for uci in detected.uciMoves {
@@ -360,7 +385,15 @@ final class AnalysisManager: ObservableObject {
         sessionStartFEN = Board.startFEN
         liveBoardID = detected.boardID
         lastDetectedMoves = Array(detected.moveList.suffix(6))
-        statusMessage = detected.isGameOver ? "Partie auf Chess.com beendet." : nil
+        statusMessage = nil
+
+        if let reason = engineBlockedReason {
+            // Fair play: cancel any running search, keep the mirrored board
+            // passive and explain why.
+            stop()
+            statusMessage = reason
+            return
+        }
 
         if settings.settings.engineEnabled && settings.settings.autoAnalyze {
             analyze(debounce: true, depthCap: liveDepthCap)
@@ -368,6 +401,13 @@ final class AnalysisManager: ObservableObject {
             candidates = []
             isAnalyzing = false
         }
+    }
+
+    /// Leaves the fair play guard because the board belongs to the user again.
+    private func releaseLiveGuard() {
+        engineBlockedReason = nil
+        liveContextLabel = nil
+        liveBoardID = nil
     }
 
     private func consume(update: EngineUpdate, position: Board, generation: Int) {
@@ -455,6 +495,7 @@ final class AnalysisManager: ObservableObject {
 
     func play(_ move: Move) {
         guard board.isLegal(move) else { return }
+        releaseLiveGuard()
         clearPreview()
         let before = board
         let san = board.san(for: move)
@@ -493,6 +534,7 @@ final class AnalysisManager: ObservableObject {
 
     func reset() {
         clearPreview()
+        releaseLiveGuard()
         board = Board()
         history = []
         moveLog = []
@@ -509,6 +551,7 @@ final class AnalysisManager: ObservableObject {
 
     func setBoard(_ newBoard: Board) {
         clearPreview()
+        releaseLiveGuard()
         board = newBoard
         history = []
         moveLog = []
@@ -530,6 +573,7 @@ final class AnalysisManager: ObservableObject {
 
     func load(game: PGNGame) {
         clearPreview()
+        releaseLiveGuard()
         let startBoard = game.startBoard
         board = startBoard
         history = []

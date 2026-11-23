@@ -75,12 +75,12 @@ enum ChessComPositionScript {
         if (!board) { return null; }
         var flipped = isFlipped(board);
         var nodes = board.querySelectorAll(".piece");
-        if (!nodes || nodes.length < 2) {
-          nodes = document.querySelectorAll(".piece");
-        }
         if (!nodes || nodes.length < 2) { return null; }
 
+        // Mini boards and thumbnails are ignored: a board that small cannot be
+        // read reliably and must never produce a guessed position.
         var rect = board.getBoundingClientRect();
+        if (rect.width < 200 || rect.height < 200) { return null; }
         var grid = [];
         var i;
         for (i = 0; i < 64; i++) { grid.push("."); }
@@ -224,9 +224,7 @@ enum ChessComPositionScript {
           moves: moves,
           userColor: board.flipped ? "b" : "w",
           isGameOver: gameOver,
-          boardID: boardID,
-          orientation: board.flipped ? "black" : "white",
-          capturedAt: Date.now()
+          boardID: boardID
         });
       }
 
