@@ -300,7 +300,7 @@ Umgebung ohne iPhone nicht möglich.
 
 ## 8. Version
 
-`2.2.0` (Build 5) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+`2.3.0` (Build 6) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
 ---
 
 ## 9. Qualitätsprüfung (v2.2)

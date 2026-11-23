@@ -148,13 +148,7 @@ struct ChessBoardView: View {
     private func piecesLayer(squareSize: CGFloat) -> some View {
         ZStack {
             ForEach(animatedPieces) { item in
-                Text(item.piece.glyph(style: pieceStyle))
-                    .font(.system(size: squareSize * 0.84, weight: .regular))
-                    .foregroundStyle(item.piece.displayColor(style: pieceStyle))
-                    .shadow(color: .black.opacity(item.piece.color == .white ? 0.55 : 0.35),
-                            radius: 1.6, x: 0, y: 1.2)
-                    .shadow(color: item.piece.color == .black ? Color.white.opacity(0.18) : Color.clear,
-                            radius: 0.6)
+                PieceGlyph(piece: item.piece, style: pieceStyle, size: squareSize * 0.86)
                     .position(point(for: item.square, squareSize: squareSize))
                     .allowsHitTesting(false)
                     .transition(.opacity)
@@ -475,5 +469,63 @@ private struct ArrowHead: Shape {
                                  y: base.y - perpendicular.y * halfWidth))
         path.closeSubpath()
         return path
+    }
+}
+
+// MARK: - Pieces
+
+/// Chess.com style piece rendering.
+///
+/// The solid Unicode set paints the silhouette, the outline set is stacked on
+/// top for the Staunton contour. White pieces are therefore really white (ivory
+/// body, dark edge) instead of a grey tint of the same shape, which is what made
+/// white pawns look washed out on the green board.
+private struct PieceGlyph: View {
+    let piece: Piece
+    let style: PieceStyleID
+    let size: CGFloat
+
+    private var isWhite: Bool { piece.color == .white }
+
+    private var contourColor: Color {
+        isWhite ? Color(hex: 0x1B1F27) : Color(hex: 0x5A636F)
+    }
+
+    private var flatColor: Color {
+        isWhite ? Color(hex: 0xF8F4E9) : Color(hex: 0x1C2026)
+    }
+
+    private var bodyStyle: AnyShapeStyle {
+        if isWhite {
+            return AnyShapeStyle(
+                LinearGradient(colors: [Color(hex: 0xFFFFFF), Color(hex: 0xEDE6D6)],
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+            )
+        }
+        return AnyShapeStyle(
+            LinearGradient(colors: [Color(hex: 0x3B434E), Color(hex: 0x14181D)],
+                           startPoint: .topLeading,
+                           endPoint: .bottomTrailing)
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            if style == .outline {
+                Text(piece.glyph(style: .outline))
+                    .font(.system(size: size, weight: .regular))
+                    .foregroundStyle(isWhite ? Color(hex: 0xF1EADB) : Color(hex: 0x20242B))
+            } else {
+                Text(piece.glyph(style: .neo))
+                    .font(.system(size: size, weight: .regular))
+                    .foregroundStyle(style == .classic ? AnyShapeStyle(flatColor) : bodyStyle)
+                Text(piece.glyph(style: .classic))
+                    .font(.system(size: size, weight: .regular))
+                    .foregroundStyle(contourColor)
+                    .opacity(style == .classic ? 0.95 : 0.85)
+            }
+        }
+        .shadow(color: .black.opacity(isWhite ? 0.45 : 0.3), radius: 1.3, x: 0, y: 1.1)
     }
 }
