@@ -69,7 +69,7 @@ struct HomeView: View {
                     Text("Chess.com")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(Theme.text)
-                    Text("Melde dich an, spiele im eingebetteten Brett und sieh die Stockfish-Analyse direkt darunter – ohne Bildschirmwechsel.")
+                    Text("Melde dich an, spiele im eingebetteten Brett und sieh die Stockfish-Analyse direkt darunter. In laufenden Partien gegen Menschen bleibt die Engine gesperrt – beendete Partien werden ausgewertet.")
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -86,6 +86,14 @@ struct HomeView: View {
                 Label("Chess.com öffnen", systemImage: "arrow.up.right.square.fill")
             }
             .buttonStyle(PrimaryButtonStyle())
+
+            Button {
+                environment.startDemoSession()
+            } label: {
+                Label("Demo-Sitzung (Pass-and-Play)", systemImage: "person.2.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle(fullWidth: true))
 
             HStack(spacing: 8) {
                 Pill(text: "Engine integriert", icon: "cpu")

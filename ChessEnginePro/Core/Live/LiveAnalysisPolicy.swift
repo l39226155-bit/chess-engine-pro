@@ -3,18 +3,27 @@
 //  CHESS ENGINE PRO
 //
 //  The single place that decides whether the engine may show suggestions for a
-//  page that is currently open in the Chess.com web view.
+//  Chess.com page, and for a local demo session.
 //
-//  Supported modes are analysis boards, puzzles/training and games against the
-//  computer. A running rated online game against a human is not a supported
-//  analysis mode, so the panel stays locked there - no evaluation, no best move
-//  and no engine calculation at all.
+//  Modes and their handling:
+//
+//  | Mode                                   | Engine suggestions |
+//  | -------------------------------------- | ------------------ |
+//  | Computer game (/play/computer)         | yes                |
+//  | Analysis board (/analysis)             | yes                |
+//  | Training and puzzles (/puzzles, ...)   | yes                |
+//  | Chess.com home / profile               | yes (no board)     |
+//  | Running game against a human (/game/…) | no                 |
+//  | Finished game (same page, game over)   | yes                |
+//
+//  A local demo session is a shared screen: everybody present sees the engine.
+//  It never unlocks a running online game - that guard is not configurable.
 //
 
 import Foundation
 
 /// What the embedded Chess.com page is currently used for. Classified from the
-/// URL only - no page internals are read for this decision.
+/// URL and the detected game-over state only.
 enum ChessComPageMode: String, Equatable, Sendable {
     case home
     case computer
@@ -32,7 +41,17 @@ enum ChessComPageMode: String, Equatable, Sendable {
         }
     }
 
-    /// Only these modes expose engine suggestions.
+    var sfSymbol: String {
+        switch self {
+        case .home: return "crown.fill"
+        case .computer: return "desktopcomputer"
+        case .analysis: return "square.grid.3x3.fill"
+        case .training: return "graduationcap.fill"
+        case .onlineGame: return "person.2.fill"
+        }
+    }
+
+    /// Only these modes expose engine suggestions while the game is running.
     var allowsEngineSuggestions: Bool {
         switch self {
         case .onlineGame: return false
@@ -40,10 +59,12 @@ enum ChessComPageMode: String, Equatable, Sendable {
         }
     }
 
+    var isOnlineGame: Bool { self == .onlineGame }
+
     /// Short reason shown instead of suggestions, or `nil` when allowed.
     var explanation: String? {
         guard !allowsEngineSuggestions else { return nil }
-        return "In laufenden gewerteten Online-Partien bleiben Engine-Vorschläge deaktiviert. Analysebrett, Training, Puzzles und Partien gegen den Computer sind freigeschaltet."
+        return "Laufende Partie gegen einen Menschen: Engine-Vorschläge sind gesperrt. Sobald die Partie beendet ist, wird sie automatisch analysiert – Analysebrett, Training, Puzzles und Partien gegen den Computer sind jederzeit freigeschaltet."
     }
 
     /// Maps a Chess.com URL to its mode. The computer lobby also lives under
@@ -67,11 +88,46 @@ enum ChessComPageMode: String, Equatable, Sendable {
     }
 }
 
+/// Result of the gate for the position that is currently on screen.
+enum AnalysisAvailability: Equatable, Sendable {
+    case enabled
+    case blocked(reason: String)
+
+    var isEnabled: Bool {
+        if case .enabled = self { return true }
+        return false
+    }
+
+    var reason: String? {
+        if case .blocked(let reason) = self { return reason }
+        return nil
+    }
+}
+
 enum LiveAnalysisPolicy {
 
-    /// Suggestions require both a supported mode and an enabled engine.
-    static func allowsSuggestions(in mode: ChessComPageMode, engineEnabled: Bool) -> Bool {
-        engineEnabled && mode.allowsEngineSuggestions
+    /// Suggestions need an enabled engine and either a supported mode or a
+    /// finished online game. A running game against a human stays blocked.
+    static func allowsSuggestions(in mode: ChessComPageMode,
+                                  engineEnabled: Bool,
+                                  isGameOver: Bool = false) -> Bool {
+        guard engineEnabled else { return false }
+        if mode.allowsEngineSuggestions { return true }
+        return mode.isOnlineGame && isGameOver
+    }
+
+    /// Full decision including the explanation used by the panel.
+    static func availability(in mode: ChessComPageMode,
+                             engineEnabled: Bool,
+                             isGameOver: Bool) -> AnalysisAvailability {
+        if allowsSuggestions(in: mode, engineEnabled: engineEnabled, isGameOver: isGameOver) {
+            return .enabled
+        }
+        if !engineEnabled {
+            return .blocked(reason: "Die Engine ist in den Einstellungen deaktiviert.")
+        }
+        return .blocked(reason: mode.explanation
+                        ?? "Engine-Vorschläge sind für diese Ansicht nicht verfügbar.")
     }
 
     /// Note the panel shows while suggestions are unavailable.

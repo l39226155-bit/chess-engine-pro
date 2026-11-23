@@ -58,6 +58,8 @@ final class AnalysisManager: ObservableObject {
     /// False while the Chess.com page is a running rated online game, where
     /// engine suggestions must stay hidden.
     @Published var liveSuggestionsAllowed = true
+    /// Whether the position currently mirrored from the page may be analysed.
+    @Published private(set) var liveAnalysisAllowed = true
     @Published private(set) var engineName: String = ""
     @Published private(set) var statusMessage: String?
     @Published private(set) var history: [HistoryEntry] = []
@@ -305,9 +307,13 @@ final class AnalysisManager: ObservableObject {
     ///
     /// The synchroniser drops duplicated, stale and invalid updates; only a
     /// newly accepted, valid position may touch the board or the engine.
+    /// - Parameter allowAnalysis: `false` mirrors the position without touching
+    ///   the engine. Used for a running game against a human, where the board
+    ///   may be verified but no suggestion may be computed.
     func ingest(_ detected: DetectedPosition,
                 sequence: Int? = nil,
-                session: String? = nil) {
+                session: String? = nil,
+                allowAnalysis: Bool = true) {
         lastDetectionOrigin = detected.origin
 
         let sessionChanged = session != nil && session != liveSession
@@ -383,8 +389,28 @@ final class AnalysisManager: ObservableObject {
         liveBoardID = detected.boardID
         lastDetectedMoves = Array(detected.moveList.suffix(6))
         statusMessage = nil
+        liveAnalysisAllowed = allowAnalysis && settings.settings.engineEnabled
 
-        if settings.settings.engineEnabled && settings.settings.autoAnalyze {
+        // A running game against a human: the position is mirrored and
+        // validated, but nothing is calculated and any search for the previous
+        // position is invalidated immediately.
+        guard allowAnalysis, settings.settings.engineEnabled else {
+            stop()
+            candidates = []
+            evaluation = .zero
+            depth = 0
+            seldepth = 0
+            nodes = 0
+            lastUpdateTimeMs = 0
+            analysisProgress = 0
+            isAnalyzing = false
+            if !allowAnalysis {
+                statusMessage = "Laufende Partie gegen einen Menschen – Engine gesperrt."
+            }
+            return
+        }
+
+        if settings.settings.autoAnalyze {
             analyze(debounce: true, depthCap: liveDepthCap)
         } else {
             candidates = []

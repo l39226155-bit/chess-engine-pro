@@ -66,6 +66,10 @@ final class AppEnvironment: ObservableObject {
     /// The manual analysis board is shown above the whole app.
     @Published var isAnalysisPresented = false
 
+    /// A shared-screen demo session: both players look at the same board and
+    /// both see the engine. It never unlocks a running online game.
+    @Published private(set) var isDemoSession = false
+
     /// The page is preloaded at launch, but its positions only reach the app
     /// once the Chess.com tab was actually opened - a hidden page must not move
     /// the board or start the engine behind the user's back.
@@ -104,9 +108,21 @@ final class AppEnvironment: ObservableObject {
             // A hidden page, an open manual board or a rated online game must
             // never move the board or start a second calculation.
             guard self.hasOpenedChessCom, !self.isAnalysisPresented else { return }
-            guard self.browser.allowsLiveSuggestions else { return }
             guard let detected = ChessComPositionDetector.detect(payload) else { return }
-            analysis.ingest(detected, sequence: payload.sequence, session: payload.session)
+            // The position is always verified and mirrored, so the panel can show
+            // the recognised board. Whether the engine may suggest a move is
+            // decided per position: a running game against a human is mirrored
+            // only, a finished game is analysed like any other.
+            let isOver = detected.isGameOver || detected.board.status.isFinished
+            let allowAnalysis = LiveAnalysisPolicy.allowsSuggestions(
+                in: self.browser.pageMode,
+                engineEnabled: self.settings.settings.engineEnabled,
+                isGameOver: isOver
+            )
+            analysis.ingest(detected,
+                            sequence: payload.sequence,
+                            session: payload.session,
+                            allowAnalysis: allowAnalysis)
         }
 
         // One gate for the whole app. Supported modes let the engine work, a
@@ -175,6 +191,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func closeAnalysis() {
+        if isDemoSession { endDemoSession() }
         isAnalysisPresented = false
         analysis.liveDepthCap = selectedTab == .chessCom ? nil : 12
         guard hasOpenedChessCom else { return }
@@ -182,6 +199,24 @@ final class AppEnvironment: ObservableObject {
         // manually edited board.
         analysis.resumeFromChessCom()
         browser.requestLiveSnapshot(force: true)
+    }
+
+    // MARK: - Shared demo session
+
+    /// Starts an explicit demo session on the app's own board. Everybody at the
+    /// screen sees the engine, which is what makes it a demo and not assistance
+    /// in a hidden game.
+    func startDemoSession() {
+        isDemoSession = true
+        analysis.reset()
+        presentAnalysis()
+        showToast("Demo-Sitzung – Engine für alle sichtbar")
+    }
+
+    func endDemoSession() {
+        guard isDemoSession else { return }
+        isDemoSession = false
+        showToast("Demo-Sitzung beendet")
     }
 
     /// Loads an imported game into the analysis board.

@@ -77,4 +77,37 @@ final class LiveAnalysisPolicyTests: XCTestCase {
         XCTAssertEqual(ChessComPageMode.classify(url("https://example.com/game/live/1")), .home)
         XCTAssertTrue(LiveAnalysisPolicy.allowsSuggestions(in: .home, engineEnabled: true))
     }
+
+    // MARK: - Finished games and availability
+
+    func testFinishedOnlineGameAllowsAnalysis() {
+        XCTAssertTrue(LiveAnalysisPolicy.allowsSuggestions(in: .onlineGame,
+                                                           engineEnabled: true,
+                                                           isGameOver: true))
+        XCTAssertEqual(LiveAnalysisPolicy.availability(in: .onlineGame,
+                                                       engineEnabled: true,
+                                                       isGameOver: true),
+                       .enabled)
+    }
+
+    func testRunningOnlineGameStaysBlocked() {
+        XCTAssertFalse(LiveAnalysisPolicy.allowsSuggestions(in: .onlineGame,
+                                                            engineEnabled: true,
+                                                            isGameOver: false))
+        let availability = LiveAnalysisPolicy.availability(in: .onlineGame,
+                                                           engineEnabled: true,
+                                                           isGameOver: false)
+        XCTAssertFalse(availability.isEnabled)
+        XCTAssertNotNil(availability.reason)
+    }
+
+    func testFinishedGameDoesNotUnlockWhenTheEngineIsOff() {
+        XCTAssertFalse(LiveAnalysisPolicy.allowsSuggestions(in: .onlineGame,
+                                                            engineEnabled: false,
+                                                            isGameOver: true))
+        XCTAssertEqual(LiveAnalysisPolicy.availability(in: .onlineGame,
+                                                       engineEnabled: false,
+                                                       isGameOver: true),
+                       .blocked(reason: "Die Engine ist in den Einstellungen deaktiviert."))
+    }
 }

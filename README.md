@@ -14,7 +14,8 @@ unter der die Engine-Analyse direkt mitläuft.
 | Bereich | Umsetzung |
 |---|---|
 | **Chess.com** | WKWebView mit persistenter Sitzung (`WKWebsiteDataStore.default()`), kompakter Kopf (Verbindung, Login, Synchronisation), Kurzmenü für Start/Online/Puzzles/Profil/Login, Sitzung löschen. Anmeldung ausschließlich über die offizielle Chess.com-Seite. |
-| **Ein Bildschirm** | Chess.com und Stockfish sind zusammengeführt: unter der WebView sitzt ein kompaktes Analysepanel (Bewertung, bester Zug, Varianten, Tiefe, n/s, Fortschritt) mit aufklappbarem Detailbereich (FEN, Validierung, Version, Synchronzähler). Eine Engine-Instanz, ein `AnalysisManager`. |
+| **Ein Bildschirm** | Chess.com und Stockfish sind zusammengeführt: unter der WebView sitzt ein kompaktes Analysepanel (Bewertung, bester Zug mit Zugqualität, zwei weitere Varianten, Tiefe, n/s, Fortschritt) mit aufklappbarem Detailbereich (FEN, Validierung, Version, Modus, Synchronzähler). Eine Engine-Instanz, ein `AnalysisManager`. |
+| **Modi** | Computer-, Trainings- und Analysepartien werden analysiert, beendete Partien ebenfalls. In einer laufenden Partie gegen einen Menschen wird die Stellung nur gespiegelt – keine Engine. Gemeinsame Demo-Sitzungen sind ausdrücklich gekennzeichnet. |
 | **Stockfish** | Offizielle Stockfish-Quellen (17.1) werden im Build zu einer statischen iOS-Bibliothek kompiliert und **im App-Prozess** über das UCI-Protokoll angesteuert (eigener `std::cin`/`std::cout`-Transport, siehe `StockfishBridge.mm`). |
 | **Fallback** | Ist die Bibliothek nicht eingebunden, übernimmt eine vollständige Swift-Engine (Alpha-Beta + Quiescence + MultiPV), damit Analyse, Training und Partien immer funktionieren. |
 | **Analysebrett** | Tap-to-move, legale Zugvorschläge, letzter Zug, Schach-Markierung, animierte Figuren, 5 Brettdesigns, 3 Figurenstile, Koordinaten, Brett drehen. |
@@ -204,12 +205,13 @@ zentrale Arbeitsbereich; einen eigenen Stockfish-Tab gibt es nicht mehr.
 
 **Analysepanel.** `AnalysisPanelView` sitzt direkt unter der WebView und ist die
 einzige Stelle, an der Live-Ergebnisse erscheinen. Zugeklappt zeigt es eine
-Zeile: Bewertungs-Chip, bester Zug mit Folgzug, Tiefe, echte Nodes pro Sekunde
-und Analysefortschritt. Aufgeklappt (Chevron) folgen die echten MultiPV-
-Varianten (Tipp öffnet das Analysebrett mit dieser Variante), die verifizierte
-FEN mit Validierungs- und Versionsangaben sowie die Aktionen *Brett*, *Neu* und
-*Drehen*. Alle Werte stammen aus `AnalysisManager`; solange die Engine nichts
-geliefert hat, steht dort ein Platzhalter statt einer erfundenen Zahl.
+Zeile: Bewertungs-Chip, bester Zug mit Zugqualität und Folgzug, Tiefe, echte
+Nodes pro Sekunde und Analysefortschritt. Aufgeklappt (Chevron) folgen der
+beste Zug und zwei weitere Varianten (Tipp öffnet das Analysebrett mit dieser
+Variante), die verifizierte FEN mit Validierungs-, Versions- und Modusangabe
+sowie die Aktionen *Brett*, *Neu* und *Drehen*. Alle Werte stammen aus
+`AnalysisManager`; solange die Engine nichts geliefert hat, steht dort ein
+Platzhalter statt einer erfundenen Zahl.
 
 **Analysebrett.** Das frühere Stockfish-Fenster lebt als Vollbild-Analysebrett
 weiter (`AnalysisView` mit `onClose`): Brett, Pfeile, Natural Move Selection,
@@ -292,14 +294,33 @@ und ein Menü mit Start, Online spielen, Puzzles, Profil, Login, Neuladen und
 App-Start einmal geladen; ein Tabwechsel layoutet sie nur neu und lädt sie nie
 nach, damit Sitzung, Scrollposition und laufende Partie erhalten bleiben.
 
-**Wo Vorschläge erlaubt sind.** `LiveAnalysisPolicy` klassifiziert die
-Chess.com-URL in Seitenmodi: Analysebrett, Training/Puzzles, Partien gegen den
-Computer und die übrige Seite sind freigeschaltet; `/game/…` und `/play/online`
-gelten als laufende Online-Partie. In diesem Modus stoppt
-`AnalysisManager.suspendLiveAnalysis()` die Suche, leert Bewertung und
-Varianten, und `AppEnvironment` reicht keine Seiten-Payloads mehr an die Engine
-weiter – das Panel zeigt stattdessen einen Hinweis. Damit erscheinen
-Engine-Vorschläge ausschließlich in unterstützten Trainings- und Analysemodi.
+**Modi und ihre Behandlung.** `LiveAnalysisPolicy` ordnet jede Seite einem Modus
+zu und entscheidet pro Stellung:
+
+| Modus | Erkennung | Engine |
+| --- | --- | --- |
+| Computerpartie (`/play/computer`) | URL | volle Analyse |
+| Analysebrett (`/analysis`) | URL | volle Analyse |
+| Training/Puzzles (`/puzzles`, `/practice`, …) | URL | volle Analyse |
+| Laufende Partie gegen einen Menschen (`/game/…`, `/play/online`) | URL, kein Partieende | **gesperrt** |
+| Beendete Partie | Partieende im Payload oder Matt/Patt/Remis auf dem Brett | volle Analyse |
+| Gemeinsame Demo-Sitzung | ausdrücklich in der App gestartet | volle Analyse, sichtbar für alle |
+
+**Laufende Partie gegen einen Menschen.** Die Kette Erkennung → Validierung →
+FEN → Snapshot läuft weiter, damit das Panel die erkannte Stellung und die
+Synchronzähler zeigen kann. `AnalysisManager.ingest(..., allowAnalysis: false)`
+mirroriert das Brett, ruft `stop()` auf, leert Bewertung, Varianten und
+Fortschritt und setzt den Status „Laufende Partie gegen einen Menschen – Engine
+gesperrt“. Es wird keine Suche gestartet, auch nicht im Hintergrund. Fällt das
+Partieende (Payload-Flag oder Matt/Patt/Remis auf dem validierten Brett), wird
+dieselbe Stellung automatisch freigegeben und analysiert. Die Regel ist nicht
+konfigurierbar und wird nirgends umgangen.
+
+**Gemeinsame Demo-Sitzung.** Über Home → „Demo-Sitzung (Pass-and-Play)“ startet
+eine ausdrücklich gekennzeichnete Sitzung auf dem App-Brett: zwei Spieler am
+selben Gerät, Engine für beide sichtbar (Banner über dem Brett, Beenden-Knopf).
+Sie schaltet keine Online-Partie frei – sie ist der ehrliche Weg, die
+Engine-Integration im Unterricht vorzuführen.
 
 **Ehrliche FEN.** Der Fallback kennzeichnet in `FenConfidence`, welche Felder
 verifiziert sind. Zugrecht ohne Uhr, Rochaderechte, En-passant-Feld,
@@ -323,10 +344,10 @@ Umgebung ohne iPhone nicht möglich.
 
 ## 8. Version
 
-`2.4.0` (Build 7) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
+`2.5.0` (Build 8) · Marketing-Version in `project.yml` (`MARKETING_VERSION`).
 ---
 
-## 9. Qualitätsprüfung (v2.4)
+## 9. Qualitätsprüfung (v2.5)
 
 **Automatisch geprüft (GitHub Actions, iOS-Simulator):**
 
@@ -339,7 +360,8 @@ Umgebung ohne iPhone nicht möglich.
 | Jede übernommene Stellung erreicht die Engine, auch während einer laufenden Partie | `AnalysisManagerLiveTests` |
 | Nur gültige Stellungen erreichen Brett und Engine; schnelle Züge analysieren nur die letzte Stellung; Reload-Rebase | `AnalysisManagerLiveTests` |
 | WebView lädt genau einmal, Tabwechsel/Snapshot/Session-Refresh navigieren nicht | `ChessComBrowserLifecycleTests` |
-| Seitenmodus-Klassifikation (Computer, Analyse, Training, Online-Partie) und Vorschlags-Gate | `LiveAnalysisPolicyTests` |
+| Seitenmodus-Klassifikation (Computer, Analyse, Training, Online-Partie), beendete Partie, Vorschlags-Gate | `LiveAnalysisPolicyTests` |
+| Laufende Partie wird gespiegelt, aber nie analysiert; Wechsel in den gesperrten Modus löscht alte Varianten; beendete Partie wird analysiert | `AnalysisManagerModeTests` |
 | Regeln, Perft, SAN/PGN, Engine-Bridge, Speicherung | `ChessCoreTests`, `EngineTests` |
 
 **Nicht geprüft – benötigt ein echtes iPhone:**

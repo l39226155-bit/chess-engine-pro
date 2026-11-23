@@ -44,7 +44,12 @@ struct AnalysisView: View {
         }
         .background(Theme.background)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if onClose != nil { closeBar }
+            if environment.isDemoSession || onClose != nil {
+                VStack(spacing: 0) {
+                    if environment.isDemoSession { demoBar }
+                    if onClose != nil { closeBar }
+                }
+            }
         }
         .onChange(of: settings.settings) { _, newValue in
             analysis.apply(style: newValue.style)
@@ -67,6 +72,40 @@ struct AnalysisView: View {
             environment.showToast("Partie geladen")
         } onError: { message in
             environment.showToast(message)
+        }
+    }
+
+    // MARK: - Demo session
+
+    /// Visible for everybody at the screen: the engine is on, and nobody has to
+    /// assume otherwise.
+    private var demoBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.2.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Demo-Sitzung")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.text)
+                Text("Zwei Spieler am selben Gerät · Engine für alle sichtbar")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            Button("Beenden") {
+                environment.endDemoSession()
+            }
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(Theme.error)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(Theme.accentMuted)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.divider).frame(height: 1)
         }
     }
 

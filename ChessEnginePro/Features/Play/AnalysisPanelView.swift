@@ -38,16 +38,26 @@ struct AnalysisPanelView: View {
 
     // MARK: - Gate
 
-    private var allowsEngine: Bool {
-        LiveAnalysisPolicy.allowsSuggestions(in: browser.pageMode,
-                                             engineEnabled: settings.settings.engineEnabled)
+    /// The same rule the ingestion uses: a payload flag or a finished board.
+    private var isGameOver: Bool {
+        if analysis.board.status.isFinished { return true }
+        return analysis.liveSnapshot?.isGameOver ?? false
     }
 
-    private var blockNote: String? {
-        if !settings.settings.engineEnabled {
-            return "Die Engine ist in den Einstellungen deaktiviert."
-        }
-        return LiveAnalysisPolicy.blockNote(for: browser.pageMode)
+    private var availability: AnalysisAvailability {
+        LiveAnalysisPolicy.availability(in: browser.pageMode,
+                                        engineEnabled: settings.settings.engineEnabled,
+                                        isGameOver: isGameOver)
+    }
+
+    private var allowsEngine: Bool { availability.isEnabled }
+
+    private var blockNote: String? { availability.reason }
+
+    private var blockTitle: String {
+        if !settings.settings.engineEnabled { return "Engine deaktiviert" }
+        if browser.pageMode.isOnlineGame && !isGameOver { return "Partie läuft – Engine gesperrt" }
+        return "Engine gesperrt"
     }
 
     private var hasEvaluation: Bool { !analysis.candidates.isEmpty }
@@ -130,17 +140,14 @@ struct AnalysisPanelView: View {
 
     @ViewBuilder
     private var primaryLine: some View {
-        if let note = blockNote {
+        if blockNote != nil {
             HStack(spacing: 5) {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Theme.warning)
-                Text("Analyse deaktiviert")
+                Text(blockTitle)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.text)
-                Text(note)
-                    .font(.system(size: 9))
-                    .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
             }
         } else if let best = analysis.candidates.first {
@@ -148,6 +155,7 @@ struct AnalysisPanelView: View {
                 Text(best.san)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.text)
+                QualityBadge(quality: best.quality, compact: true)
                 Text(best.pvSAN.dropFirst().prefix(4).joined(separator: " "))
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(Theme.secondaryText)
@@ -173,7 +181,12 @@ struct AnalysisPanelView: View {
     }
 
     private var statusLine: String {
-        if blockNote != nil { return "Nur in Analyse, Training und gegen Computer" }
+        if blockNote != nil {
+            if let snapshot = analysis.liveSnapshot {
+                return "Stellung erkannt · Zug \(snapshot.ply) · \(snapshot.statusText)"
+            }
+            return "Nur in Analyse, Training und gegen Computer"
+        }
         if analysis.isAnalyzing {
             let percent = Int(min(1, max(0, analysis.analysisProgress)) * 100)
             return "\(npsText) · \(percent) %"
@@ -241,7 +254,9 @@ struct AnalysisPanelView: View {
                     .foregroundStyle(Theme.secondaryText)
                     .padding(.vertical, 6)
             } else {
-                let variants = Array(analysis.styleRankedCandidates.prefix(5))
+                // Best move plus two further variants, as shown on the panel.
+                let variantCount = max(3, min(5, settings.settings.multiPV))
+                let variants = Array(analysis.styleRankedCandidates.prefix(variantCount))
                 ForEach(Array(variants.enumerated()), id: \.offset) { item in
                     variationRow(item.element)
                     if item.offset < variants.count - 1 {
@@ -304,6 +319,9 @@ struct AnalysisPanelView: View {
                 Text("Stellung")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.secondaryText)
+                Pill(text: browser.pageMode.localizedTitle,
+                     color: browser.pageMode.isOnlineGame ? Theme.warning : Theme.secondaryText,
+                     icon: browser.pageMode.sfSymbol)
                 if let snapshot = analysis.liveSnapshot {
                     Text("Zug \(snapshot.ply) · \(snapshot.source.localizedTitle)")
                         .font(.system(size: 9))
